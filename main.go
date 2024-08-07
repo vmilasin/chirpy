@@ -1,22 +1,28 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 )
 
 func main() {
-	// ServeMux is an HTTP request multiplexer.
-	// It matches the URL of each incoming request against a list of registered patterns and calls the handler for the pattern that most closely matches the URL.
-	mux := http.NewServeMux()
+	const filepathRoot = "."
+	const port = "8080"
 
-	// A Server defines parameters for running an HTTP server. The zero value for Server is a valid configuration.
-	// Use the mux we created as the handler for our server
-	server := http.Server{
+	// ServeMux is an HTTP request router
+	mux := http.NewServeMux()
+	fileserver := http.FileServer(http.Dir(filepathRoot))
+
+	// HANDLERS:
+	mux.Handle("/", fileserver)
+
+	// A Server defines parameters for running an HTTP server
+	// We use a pointer to specify the same server instance, instead of working with multiple copies (for each request)
+	server := &http.Server{
 		Handler: mux,
-		Addr:    "localhost:8080",
+		Addr:    ":" + port,
 	}
 
-	fmt.Printf("Serving at %s", server.Addr)
-	server.ListenAndServe()
+	log.Printf("Serving at %s\n", server.Addr)
+	log.Fatal(server.ListenAndServe())
 }
