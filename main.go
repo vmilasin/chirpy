@@ -25,6 +25,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.handlerMetricsReset)
+	mux.HandleFunc("POST /api/validate_chirp", cfg.handlerValidateChirp)
 
 	// A Server defines parameters for running an HTTP server
 	// We use a pointer to specify the same server instance, instead of working with multiple copies (for each request)
