@@ -8,32 +8,42 @@ import (
 )
 
 // Validate chirp length
-func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	type chirp struct {
+func (cfg apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+	type reqBody struct {
 		Body string `json:"body"`
 	}
 
 	type returnVals struct {
+		Id          string  `json:"id"`
 		Valid       bool    `json:"valid"`
 		CleanedBody *string `json:"cleaned_body"`
 	}
 
+	// Unmarshal JSON payload from the received request body
 	decoder := json.NewDecoder(r.Body)
-	ch := chirp{}
+	ch := reqBody{}
 	err := decoder.Decode(&ch)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
 		return
 	}
 
+	// Check if the chirp is over the size limit
 	const maxChirpLength = 140
 	if len(ch.Body) > maxChirpLength {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 
+	// Run the profanity check against the chirp
 	cb := profanityCheck(ch.Body)
-	respondWithJSON(w, http.StatusOK, returnVals{
+
+	// Get all the chirps saved in the database
+	DBData := cfg.readDB()
+
+	// Print the saved payload
+	respondWithJSON(w, http.StatusCreated, returnVals{
+		Id:          chID,
 		Valid:       true,
 		CleanedBody: &cb,
 	})
@@ -117,3 +127,32 @@ func profanityCheck(chBody string) (cleanBody string) {
 	cleanBody = strings.Join(words, " ")
 	return cleanBody
 }
+
+/*
+// Read from database.json file
+func (cfg apiConfig) readDB() chirpDatabase {
+	cfg.MutexRW.RLock()
+	defer cfg.MutexRW.RUnlock()
+
+	dbData, err := os.ReadFile("database.json")
+	checkError(err)
+
+	dat := chirpDatabase{}
+	err = json.Unmarshal(dbData, &dat)
+	checkError(err)
+
+	return dat
+}
+
+// Write to database.json file
+func (cfg apiConfig) writeDB(DBData chirpDatabase, chirp string) {
+	cfg.MutexRW.Lock()
+	defer cfg.MutexRW.Unlock()
+
+	nextIndex := reflect.ValueOf(DBData).Len() + 1
+
+	DBData = append(DBData, payload)
+
+	err = json.Marshal()
+}
+*/

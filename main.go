@@ -10,9 +10,11 @@ func main() {
 	const port = "8080"
 
 	// Initialize API config
-	cfg := &apiConfig{
-		FileserverHits: 0,
-	}
+	cfg := newApiConfig()
+
+	// Initialize chirp DB
+	chirpDB, err := database.newDB("database.json")
+	checkError(err)
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -25,7 +27,8 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.handlerMetricsReset)
-	mux.HandleFunc("POST /api/validate_chirp", cfg.handlerValidateChirp)
+	mux.HandleFunc("GET /api/chirps", cfg.handlerValidateChirp)
+	mux.HandleFunc("POST /api/chirps", cfg.handlerValidateChirp)
 
 	// A Server defines parameters for running an HTTP server
 	// We use a pointer to specify the same server instance, instead of working with multiple copies (for each request)
