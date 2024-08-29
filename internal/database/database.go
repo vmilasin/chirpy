@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"sync"
 )
@@ -24,22 +23,32 @@ func NewDB(path string) (*ChirpDB, error) {
 
 // ensureDB creates a new database file if it doesn't exist
 func (db *ChirpDB) ensureDB() error {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-	f, err := os.Open(db.path)
-	if err == nil {
-		f.Close()
-		return errors.New("database file already exists")
-	}
-
 	db.mux.Lock()
 	defer db.mux.Unlock()
-	f, err = os.Create(db.path)
+
+	// Check if the file already exists
+	_, err := os.Stat(db.path)
+	if err == nil {
+		// The file exists
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		// There was an error other than "file does not exist"
+		return err
+	}
+
+	// File does not exist, create it
+	file, err := os.Create(db.path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return nil
+	defer file.Close()
+
+	// Initialize empty database structure in the file
+	emptyDB := DBStructure{
+		Chirps: make(map[int]Chirp),
+	}
+	return db.writeDB(emptyDB)
 }
 
 type Chirp struct {

@@ -15,7 +15,7 @@ func newApiConfig() (*apiConfig, error) {
 	// Initialize chirp DB
 	internalDB, err := database.NewDB("database.json")
 	if err != nil {
-		return &apiConfig{}, nil
+		return &apiConfig{}, err
 	}
 
 	cfg := &apiConfig{
