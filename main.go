@@ -6,14 +6,12 @@ import (
 )
 
 func main() {
+	// Configure fileserver root path and port to serve the site on
 	const filepathRoot = "."
 	const port = "8080"
 
 	// Initialize API config
-	cfg := newApiConfig()
-
-	// Initialize chirp DB
-	chirpDB, err := database.newDB("database.json")
+	cfg, err := newApiConfig()
 	checkError(err)
 
 	// ServeMux is an HTTP request router
@@ -22,16 +20,15 @@ func main() {
 	// Configure root path for your fileserver
 	fileserver := http.FileServer(http.Dir(filepathRoot))
 
-	/* HANDLER REGISTRATION (check custom_handlers.go for custom handlers): */
+	/* HANDLER REGISTRATION: */
 	mux.Handle("/app/*", cfg.middlewareMetricsInc(http.StripPrefix("/app", fileserver)))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.handlerMetricsReset)
-	mux.HandleFunc("GET /api/chirps", cfg.handlerValidateChirp)
-	mux.HandleFunc("POST /api/chirps", cfg.handlerValidateChirp)
+	mux.HandleFunc("GET /api/chirps", cfg.handlerGetChirps)
+	mux.HandleFunc("POST /api/chirps", cfg.handlerPostChirps)
 
-	// A Server defines parameters for running an HTTP server
-	// We use a pointer to specify the same server instance, instead of working with multiple copies (for each request)
+	// Server parameters
 	server := &http.Server{
 		Handler: mux,
 		Addr:    ":" + port,

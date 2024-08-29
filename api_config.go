@@ -2,17 +2,27 @@ package main
 
 import (
 	"net/http"
+
+	"github.com/vmilasin/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	FileserverHits int
+	db             *database.ChirpDB
 }
 
-func newApiConfig() *apiConfig {
+func newApiConfig() (*apiConfig, error) {
+	// Initialize chirp DB
+	internalDB, err := database.NewDB("database.json")
+	if err != nil {
+		return &apiConfig{}, nil
+	}
+
 	cfg := &apiConfig{
 		FileserverHits: 0,
+		db:             internalDB,
 	}
-	return cfg
+	return cfg, nil
 }
 
 /* MIDDLEWARE: */
