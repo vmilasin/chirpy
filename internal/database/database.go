@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"sync"
 )
@@ -10,6 +9,13 @@ import (
 type ChirpDB struct {
 	path string
 	mux  *sync.RWMutex
+}
+
+type DBStructure struct {
+	NextChirpID int           `json:"nextChirpId"`
+	Chirps      map[int]Chirp `json:"chirps"`
+	NextUserID  int           `json:"nextUserId"`
+	Users       map[int]User  `json:"users"`
 }
 
 // Initiate a new database
@@ -47,18 +53,12 @@ func (db *ChirpDB) ensureDB() error {
 
 	// Initialize empty database structure in the file
 	emptyDB := DBStructure{
-		Chirps: make(map[int]Chirp),
+		NextChirpID: 0,
+		Chirps:      make(map[int]Chirp),
+		NextUserID:  0,
+		Users:       make(map[int]User),
 	}
 	return db.writeDB(emptyDB)
-}
-
-type Chirp struct {
-	ID   int    `json:"id"`
-	Body string `json:"body"`
-}
-
-type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
 }
 
 // loadDB reads the database file into memory
@@ -90,66 +90,4 @@ func (db *ChirpDB) writeDB(dbStructure DBStructure) error {
 	}
 
 	return nil
-}
-
-// GetChirps returns all chirps in the database
-func (db *ChirpDB) GetChirps() ([]Chirp, error) {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	dat, err := db.loadDB()
-	if err != nil {
-		return []Chirp{}, err
-	}
-
-	var datLen int = len(dat.Chirps)
-	result := make([]Chirp, 0, datLen)
-	for _, item := range dat.Chirps {
-		result = append(result, item)
-	}
-
-	return result, nil
-}
-
-// GetChirp returns a specific chip from the db
-func (db *ChirpDB) GetChirp(requestedId int) (Chirp, error) {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	dat, err := db.loadDB()
-	if err != nil {
-		return Chirp{}, err
-	}
-
-	result, exists := dat.Chirps[requestedId]
-	if exists {
-		return result, nil
-	} else {
-		return Chirp{}, errors.New("Chirp not found")
-	}
-}
-
-// CreateChirp creates a new chirp and saves it to disk
-func (db *ChirpDB) CreateChirp(body string) (Chirp, error) {
-	db.mux.Lock()
-	defer db.mux.Unlock()
-
-	dbDat, err := db.loadDB()
-	if err != nil {
-		return Chirp{}, err
-	}
-
-	nextIndex := len(dbDat.Chirps) + 1
-	newChirp := Chirp{
-		ID:   nextIndex,
-		Body: body,
-	}
-
-	dbDat.Chirps[nextIndex] = newChirp
-	err = db.writeDB(dbDat)
-	if err != nil {
-		return Chirp{}, err
-	}
-
-	return newChirp, nil
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"text/template"
 
@@ -78,6 +79,7 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		// Respond with JSON
 		respondWithJSON(w, http.StatusOK, loadedChirps)
 	} else {
+		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) // HTTP requests should be GET
 	}
 }
@@ -106,7 +108,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST a chirp
-func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerPostChirp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
@@ -138,6 +140,44 @@ func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, r *http.Request) 
 
 		// Respond with JSON
 		respondWithJSON(w, http.StatusCreated, newChirp)
+	} else {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
+	}
+}
+
+// POST an User
+func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Read the request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Parse JSON
+		var user = database.User{}
+		if err := json.Unmarshal(body, &user); err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid JSON")
+			return
+		}
+
+		// Validate email
+		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+		re := regexp.MustCompile(emailPattern)
+		if !re.MatchString(user.Email) {
+			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
+		}
+
+		// Create chirp in database
+		newUser, err := cfg.db.Createuser(user.Email)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
+			return
+		}
+
+		// Respond with JSON
+		respondWithJSON(w, http.StatusCreated, newUser)
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
 	}
