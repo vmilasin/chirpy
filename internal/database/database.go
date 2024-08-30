@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"sync"
 )
@@ -108,6 +109,24 @@ func (db *ChirpDB) GetChirps() ([]Chirp, error) {
 	}
 
 	return result, nil
+}
+
+// GetChirp returns a specific chip from the db
+func (db *ChirpDB) GetChirp(requestedId int) (Chirp, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	dat, err := db.loadDB()
+	if err != nil {
+		return Chirp{}, err
+	}
+
+	result, exists := dat.Chirps[requestedId]
+	if exists {
+		return result, nil
+	} else {
+		return Chirp{}, errors.New("Chirp not found")
+	}
 }
 
 // CreateChirp creates a new chirp and saves it to disk

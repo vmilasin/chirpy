@@ -65,7 +65,7 @@ func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request
 	w.Write([]byte(output))
 }
 
-// Get all chirps
+// GET all chirps
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		// Fetch all chirps from the DB
@@ -82,7 +82,30 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Insert a chirp
+// GET a chirp
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		// Get the chirp ID from the request
+		requestedId, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+		}
+
+		// Fetch the requested chirp from the DB
+		loadedChirp, err := cfg.db.GetChirp(requestedId)
+		if err != nil {
+			respondWithError(w, http.StatusNotFound, "Chirp not found")
+			return
+		}
+
+		// Respond with JSON
+		respondWithJSON(w, http.StatusOK, loadedChirp)
+	} else {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) // HTTP requests should be GET
+	}
+}
+
+// POST a chirp
 func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Read the request body
