@@ -15,6 +15,8 @@ func (db *ChirpDB) Createuser(userEmail string) (User, error) {
 		return User{}, err
 	}
 
+	// In a real app, I'd be using an SQL database, and would check if the user (email) is already in the DB
+
 	dbDat.NextUserID += 1
 	newUser := User{
 		ID:    dbDat.NextUserID,

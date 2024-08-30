@@ -11,9 +11,9 @@ type apiConfig struct {
 	db             *database.ChirpDB
 }
 
-func newApiConfig() (*apiConfig, error) {
+func newApiConfig(dbFileName string) (*apiConfig, error) {
 	// Initialize chirp DB
-	internalDB, err := database.NewDB("database.json")
+	internalDB, err := database.NewDB(dbFileName)
 	if err != nil {
 		return &apiConfig{}, err
 	}
