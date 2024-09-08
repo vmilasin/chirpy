@@ -162,9 +162,12 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Validate if email already exists in the DB
-		_, exists := cfg.AppDatabase.UserDB.UserLookup[user.Email]
+		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
+		}
 		if exists {
-			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
+			respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.")
 		}
 
 		// Validate email complexity
@@ -182,7 +185,7 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create user in database
-		newUser, err := cfg.AppDatabase.UserDB.Createuser(user.Email, *user.Password)
+		newUser, err := cfg.AppDatabase.UserDB.CreateUser(user.Email, *user.Password)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
 			return
@@ -212,15 +215,26 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Create user in database
-		newUser, err := cfg.AppDatabase.UserDB.Createuser(user.Email, user.Password)
+		// Check if the provided user exists in the DB
+		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
+			respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
+			return
+		}
+		if !exists {
+			respondWithError(w, http.StatusBadRequest, "Wrong e-mail address. Please type a valid one.")
+			return
+		}
+
+		// Log in to the desired user
+		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(user.Email, *user.Password)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "User authorization failed")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusCreated, newUser)
+		respondWithJSON(w, http.StatusCreated, currentUser)
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
 	}

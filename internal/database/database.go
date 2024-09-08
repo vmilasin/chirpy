@@ -19,9 +19,8 @@ type DB interface {
 }
 
 type ChirpDB struct {
-	path   string
-	dbType string
-	mux    *sync.RWMutex
+	path string
+	mux  *sync.RWMutex
 }
 
 func (db *ChirpDB) Path() string {
@@ -33,9 +32,8 @@ func (db *ChirpDB) Mux() *sync.RWMutex {
 }
 
 type UserDB struct {
-	path   string
-	dbType string
-	mux    *sync.RWMutex
+	path string
+	mux  *sync.RWMutex
 }
 
 func (db *UserDB) Path() string {
@@ -65,7 +63,7 @@ func NewDB(chirpPath, userPath string) (*AppDatabase, error) {
 	}
 	err := ensureDB(chDB)
 	if err != nil {
-		log.Printf(err.Error())
+		log.Print(err.Error())
 		log.Fatal("error during chirp DB creation")
 	}
 
@@ -75,7 +73,7 @@ func NewDB(chirpPath, userPath string) (*AppDatabase, error) {
 	}
 	err = ensureDB(uDB)
 	if err != nil {
-		log.Printf(err.Error())
+		log.Print(err.Error())
 		log.Fatal("error during user DB creation")
 	}
 

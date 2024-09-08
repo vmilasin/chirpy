@@ -10,7 +10,26 @@ type User struct {
 	ID           int     `json:"id"`
 	Email        string  `json:"email"`
 	Password     *string `json:"password,omitempty"`
-	PasswordHash []byte  `json:"passwordHash"`
+	PasswordHash *[]byte `json:"passwordHash"`
+}
+
+// User lookup
+func (db *UserDB) UserLookup(userEmail string) (*int, bool, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	_, dbDat, err := loadDB(db)
+	if err != nil {
+		return nil, true, err
+	}
+
+	id, exists := dbDat.UserLookup[userEmail]
+
+	if exists {
+		return nil, true, nil
+	}
+
+	return &id, false, nil
 }
 
 // Remove password from returning to user on success
@@ -20,7 +39,7 @@ type ReturnUser struct {
 }
 
 // CreateUser creates a new user and saves it to disk
-func (db *ChirpDB) Createuser(userEmail, userPassword string) (ReturnUser, error) {
+func (db *UserDB) CreateUser(userEmail, userPassword string) (ReturnUser, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
@@ -38,7 +57,7 @@ func (db *ChirpDB) Createuser(userEmail, userPassword string) (ReturnUser, error
 	newUser := User{
 		ID:           dbDat.NextUserID,
 		Email:        userEmail,
-		PasswordHash: newPwHash,
+		PasswordHash: &newPwHash,
 	}
 
 	dbDat.Users[dbDat.NextUserID] = newUser
@@ -66,4 +85,32 @@ func CreatePasswordHash(password string) ([]byte, error) {
 	}
 
 	return newHash, nil
+}
+
+// User login
+func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) {
+	userID, _, err := db.UserLookup(userEmail)
+	if err != nil {
+		return ReturnUser{}, err
+	}
+
+	_, dbDat, err := loadDB(db)
+	if err != nil {
+		return ReturnUser{}, err
+	}
+
+	desiredUser := dbDat.Users[*userID]
+	hashedPW := desiredUser.PasswordHash
+	providedPW := []byte(userPassword)
+
+	authorizationSuccess := bcrypt.CompareHashAndPassword(*hashedPW, providedPW)
+	if authorizationSuccess == nil {
+		return ReturnUser{}, errors.New("user authentication failed")
+	}
+
+	result := ReturnUser{
+		ID:    desiredUser.ID,
+		Email: desiredUser.Email,
+	}
+	return result, nil
 }

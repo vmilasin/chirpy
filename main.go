@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Initialize API config
-	cfg, err := newApiConfig(dbFileName)
+	cfg, err := newApiConfig(chirpDBFileName, userDBFileName)
 	checkError(err)
 
 	// ServeMux is an HTTP request router
