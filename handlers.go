@@ -178,10 +178,38 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Validate password
-		passwordPattern := `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$`
-		re = regexp.MustCompile(passwordPattern)
-		if !re.MatchString(*user.Password) {
-			respondWithError(w, http.StatusBadRequest, "The password should contain at least 6 characters and include a lowercase, an uppercase letter, a number and a special character.")
+		// Check password length
+		if len(*user.Password) < 6 {
+			respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
+			return
+		}
+
+		// Check for at least one lowercase letter
+		hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
+		if !hasLowercase {
+			respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
+			return
+		}
+
+		// Check for at least one uppercase letter
+		hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
+		if !hasUppercase {
+			respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
+			return
+		}
+
+		// Check for at least one digit
+		hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
+		if !hasDigit {
+			respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
+			return
+		}
+
+		// Check for at least one special character
+		hasSpecial := regexp.MustCompile(`[\W_]`).MatchString(*user.Password)
+		if !hasSpecial {
+			respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character.")
+			return
 		}
 
 		// Create user in database
