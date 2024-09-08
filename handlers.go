@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -177,6 +178,7 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
 		}
 
+		/* PASSWORD VALIDATION TEMPORARILY TURNED OFF
 		// Validate password
 		// Check password length
 		if len(*user.Password) < 6 {
@@ -211,6 +213,7 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character.")
 			return
 		}
+		*/
 
 		// Create user in database
 		newUser, err := cfg.AppDatabase.UserDB.CreateUser(user.Email, *user.Password)
@@ -232,14 +235,14 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
 			return
 		}
 
 		// Parse JSON
 		var user = database.User{}
 		if err := json.Unmarshal(body, &user); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid JSON")
+			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON: %v", err))
 			return
 		}
 
@@ -257,12 +260,12 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		// Log in to the desired user
 		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(user.Email, *user.Password)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "User authorization failed")
+			respondWithError(w, http.StatusUnauthorized, fmt.Sprintf("User authentication failed: %v", err))
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusCreated, currentUser)
+		respondWithJSON(w, http.StatusOK, currentUser)
 	} else {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
 	}

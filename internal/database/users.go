@@ -14,22 +14,22 @@ type User struct {
 }
 
 // User lookup
-func (db *UserDB) UserLookup(userEmail string) (*int, bool, error) {
+func (db *UserDB) UserLookup(userEmail string) (int, bool, error) {
 	db.mux.RLock()
 	defer db.mux.RUnlock()
 
 	_, dbDat, err := loadDB(db)
 	if err != nil {
-		return nil, true, err
+		return 0, true, err
 	}
 
 	id, exists := dbDat.UserLookup[userEmail]
 
-	if exists {
-		return nil, true, nil
+	if !exists {
+		return 0, false, nil
 	}
 
-	return &id, false, nil
+	return id, true, nil
 }
 
 // Remove password from returning to user on success
@@ -89,6 +89,8 @@ func CreatePasswordHash(password string) ([]byte, error) {
 
 // User login
 func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
 	userID, _, err := db.UserLookup(userEmail)
 	if err != nil {
 		return ReturnUser{}, err
@@ -99,13 +101,12 @@ func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) 
 		return ReturnUser{}, err
 	}
 
-	desiredUser := dbDat.Users[*userID]
+	desiredUser := dbDat.Users[userID]
 	hashedPW := desiredUser.PasswordHash
 	providedPW := []byte(userPassword)
 
-	authorizationSuccess := bcrypt.CompareHashAndPassword(*hashedPW, providedPW)
-	if authorizationSuccess == nil {
-		return ReturnUser{}, errors.New("user authentication failed")
+	if err := bcrypt.CompareHashAndPassword(*hashedPW, providedPW); err != nil {
+		return ReturnUser{}, errors.New("incorrect password")
 	}
 
 	result := ReturnUser{
