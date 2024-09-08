@@ -1,33 +1,69 @@
 package database
 
+import (
+	"errors"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
 type User struct {
+	ID           int     `json:"id"`
+	Email        string  `json:"email"`
+	Password     *string `json:"password,omitempty"`
+	PasswordHash []byte  `json:"passwordHash"`
+}
+
+// Remove password from returning to user on success
+type ReturnUser struct {
 	ID    int    `json:"id"`
 	Email string `json:"email"`
 }
 
 // CreateUser creates a new user and saves it to disk
-func (db *ChirpDB) Createuser(userEmail string) (User, error) {
+func (db *ChirpDB) Createuser(userEmail, userPassword string) (ReturnUser, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
-	dbDat, err := db.loadDB()
+	_, dbDat, err := loadDB(db)
 	if err != nil {
-		return User{}, err
+		return ReturnUser{}, err
 	}
 
-	// In a real app, I'd be using an SQL database, and would check if the user (email) is already in the DB
-
 	dbDat.NextUserID += 1
+	newPwHash, err := CreatePasswordHash(userPassword)
+	if err != nil {
+		return ReturnUser{}, errors.New("failed to create a password hash")
+	}
+
 	newUser := User{
-		ID:    dbDat.NextUserID,
-		Email: userEmail,
+		ID:           dbDat.NextUserID,
+		Email:        userEmail,
+		PasswordHash: newPwHash,
 	}
 
 	dbDat.Users[dbDat.NextUserID] = newUser
-	err = db.writeDB(dbDat)
+	dbDat.UserLookup[newUser.Email] = newUser.ID
+	err = writeToDB(db, dbDat)
 	if err != nil {
-		return User{}, err
+		return ReturnUser{}, err
 	}
 
-	return newUser, nil
+	result := ReturnUser{
+		ID:    newUser.ID,
+		Email: newUser.Email,
+	}
+
+	return result, nil
+}
+
+// Create password hash
+func CreatePasswordHash(password string) ([]byte, error) {
+	pw := []byte(password)
+
+	newHash, err := bcrypt.GenerateFromPassword(pw, 12)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return newHash, nil
 }

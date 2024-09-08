@@ -8,19 +8,19 @@ import (
 
 type apiConfig struct {
 	FileserverHits int
-	db             *database.ChirpDB
+	AppDatabase    *database.AppDatabase
 }
 
-func newApiConfig(dbFileName string) (*apiConfig, error) {
+func newApiConfig(chirpDBFileName, userDBFileName string) (*apiConfig, error) {
 	// Initialize chirp DB
-	internalDB, err := database.NewDB(dbFileName)
+	internalDB, err := database.NewDB(chirpDBFileName, userDBFileName)
 	if err != nil {
 		return &apiConfig{}, err
 	}
 
 	cfg := &apiConfig{
 		FileserverHits: 0,
-		db:             internalDB,
+		AppDatabase:    internalDB,
 	}
 	return cfg, nil
 }

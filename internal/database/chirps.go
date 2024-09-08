@@ -1,6 +1,8 @@
 package database
 
-import "errors"
+import (
+	"errors"
+)
 
 type Chirp struct {
 	ID   int    `json:"id"`
@@ -12,7 +14,7 @@ func (db *ChirpDB) GetChirps() ([]Chirp, error) {
 	db.mux.RLock()
 	defer db.mux.RUnlock()
 
-	dat, err := db.loadDB()
+	dat, _, err := loadDB(db)
 	if err != nil {
 		return []Chirp{}, err
 	}
@@ -31,7 +33,7 @@ func (db *ChirpDB) GetChirp(requestedId int) (Chirp, error) {
 	db.mux.RLock()
 	defer db.mux.RUnlock()
 
-	dat, err := db.loadDB()
+	dat, _, err := loadDB(db)
 	if err != nil {
 		return Chirp{}, err
 	}
@@ -49,19 +51,21 @@ func (db *ChirpDB) CreateChirp(body string) (Chirp, error) {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
-	dbDat, err := db.loadDB()
+	dbDat, _, err := loadDB(db)
 	if err != nil {
 		return Chirp{}, err
 	}
 
+	cleanChirp := profanityCheck(body)
+
 	dbDat.NextChirpID += 1
 	newChirp := Chirp{
 		ID:   dbDat.NextChirpID,
-		Body: body,
+		Body: cleanChirp,
 	}
 
 	dbDat.Chirps[dbDat.NextChirpID] = newChirp
-	err = db.writeDB(dbDat)
+	err = writeToDB(db, dbDat)
 	if err != nil {
 		return Chirp{}, err
 	}

@@ -70,7 +70,7 @@ func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		// Fetch all chirps from the DB
-		loadedChirps, err := cfg.db.GetChirps()
+		loadedChirps, err := cfg.AppDatabase.ChirpDB.GetChirps()
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Error fetching chirps")
 			return
@@ -94,7 +94,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Fetch the requested chirp from the DB
-		loadedChirp, err := cfg.db.GetChirp(requestedId)
+		loadedChirp, err := cfg.AppDatabase.ChirpDB.GetChirp(requestedId)
 		if err != nil {
 			respondWithError(w, http.StatusNotFound, "Chirp not found")
 			return
@@ -129,10 +129,9 @@ func (cfg *apiConfig) handlerPostChirp(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusBadRequest, "Invalid chirp")
 			return
 		}
-		cleanChirp := profanityCheck(chirp.Body)
 
 		// Create chirp in database
-		newChirp, err := cfg.db.CreateChirp(cleanChirp)
+		newChirp, err := cfg.AppDatabase.ChirpDB.CreateChirp(chirp.Body)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")
 			return
@@ -162,15 +161,59 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate email
+		// Validate if email already exists in the DB
+		_, exists := cfg.AppDatabase.UserDB.UserLookup[user.Email]
+		if exists {
+			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
+		}
+
+		// Validate email complexity
 		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 		re := regexp.MustCompile(emailPattern)
 		if !re.MatchString(user.Email) {
 			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
 		}
 
-		// Create chirp in database
-		newUser, err := cfg.db.Createuser(user.Email)
+		// Validate password
+		passwordPattern := `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$`
+		re = regexp.MustCompile(passwordPattern)
+		if !re.MatchString(*user.Password) {
+			respondWithError(w, http.StatusBadRequest, "The password should contain at least 6 characters and include a lowercase, an uppercase letter, a number and a special character.")
+		}
+
+		// Create user in database
+		newUser, err := cfg.AppDatabase.UserDB.Createuser(user.Email, *user.Password)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
+			return
+		}
+
+		// Respond with JSON
+		respondWithJSON(w, http.StatusCreated, newUser)
+	} else {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
+	}
+}
+
+// User login
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Read the request body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Parse JSON
+		var user = database.User{}
+		if err := json.Unmarshal(body, &user); err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid JSON")
+			return
+		}
+
+		// Create user in database
+		newUser, err := cfg.AppDatabase.UserDB.Createuser(user.Email, user.Password)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
 			return
