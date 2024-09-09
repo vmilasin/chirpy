@@ -5,14 +5,30 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 func main() {
+	baseDir, err := os.Getwd()
+	if err != nil {
+		log.Print(err)
+	}
+
 	// Configure fileserver root path and port to serve the site on
 	const filepathRoot = "."
 	const port = "8080"
-	const chirpDBFileName = "chirp_database.json"
-	const userDBFileName = "user_database.json"
+	// Database file paths
+	databaseFiles := make(map[string]string, 2)
+	databaseFiles["chirpDBFileName"] = "chirp_database.json"
+	databaseFiles["userDBFileName"] = "user_database.json"
+	// Log file paths
+	logFiles := make((map[string]string), 3)
+	logFiles["databaseLog"] = filepath.Join(baseDir, "logs", "database.log")
+	logFiles["databaseErrorLog"] = filepath.Join(baseDir, "logs", "database_error.log")
+	logFiles["chirpLog"] = filepath.Join(baseDir, "logs", "chirp.log")
+	logFiles["chirpErrorLog"] = filepath.Join(baseDir, "logs", "chirp_error.log")
+	logFiles["userLog"] = filepath.Join(baseDir, "logs", "user.log")
+	logFiles["userErrorLog"] = filepath.Join(baseDir, "logs", "user_error.log")
 
 	// --debug flag drops the table at the start for development purposes
 	// WARNING: THIS DROPS THE DATABASE FILE!!!
@@ -22,30 +38,18 @@ func main() {
 	if *dbg {
 		log.Print("DEBUG MODE INITIATED")
 		// Check if the chirp file already exists
-		_, err := os.Stat(chirpDBFileName)
-		if err == nil {
-			// The file exists
-			err := os.Remove(chirpDBFileName)
-			checkError(err)
-			log.Printf("Old chirp database file %s removed", chirpDBFileName)
-		} else {
-			log.Print("No old chirp database to remove")
-		}
-
-		// Check if the user file already exists
-		_, err = os.Stat(userDBFileName)
-		if err == nil {
-			// The file exists
-			err := os.Remove(userDBFileName)
-			checkError(err)
-			log.Printf("Old user database file %s removed", userDBFileName)
-		} else {
-			log.Print("No old user database to remove")
-		}
+		dropFile(databaseFiles["chirpDBFileName"])
+		dropFile(databaseFiles["userDBFileName"])
+		dropFile(logFiles["databaseLog"])
+		dropFile(logFiles["databaseErrorLog"])
+		dropFile(logFiles["chirpLog"])
+		dropFile(logFiles["chirpErrorLog"])
+		dropFile(logFiles["userLog"])
+		dropFile(logFiles["userErrorLog"])
 	}
 
 	// Initialize API config
-	cfg, err := newApiConfig(chirpDBFileName, userDBFileName)
+	cfg, err := newApiConfig(databaseFiles, logFiles)
 	checkError(err)
 
 	// ServeMux is an HTTP request router
@@ -79,5 +83,22 @@ func main() {
 func checkError(err error) {
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+// Drop files in debug mode
+func dropFile(path string) {
+	// Check if the file already exists
+	_, err := os.Stat(path)
+	if err == nil {
+		// The file exists
+		err := os.Remove(path)
+		if err != nil {
+			log.Printf("DEBUG: There was an issue when trying to remove the old file: %s", path)
+		}
+		checkError(err)
+		log.Printf("DEBUG: old file %s successfully removed.", path)
+	} else {
+		log.Print("DEBUG: No old file with path %s to remove", path)
 	}
 }

@@ -4,19 +4,23 @@ import (
 	"net/http"
 
 	"github.com/vmilasin/chirpy/internal/database"
+	"github.com/vmilasin/chirpy/internal/logger"
 )
 
 type apiConfig struct {
 	FileserverHits int
 	AppDatabase    *database.AppDatabase
+	AppLogs        map[string]string
 }
 
-func newApiConfig(chirpDBFileName, userDBFileName string) (*apiConfig, error) {
+func newApiConfig(dbFiles, logFiles map[string]string) (*apiConfig, error) {
 	// Initialize chirp DB
-	internalDB, err := database.NewDB(chirpDBFileName, userDBFileName)
+	internalDB, err := database.NewDB(dbFiles)
 	if err != nil {
 		return &apiConfig{}, err
 	}
+
+	internalLogs, err := logger.InitiateLogs(logFiles)
 
 	cfg := &apiConfig{
 		FileserverHits: 0,

@@ -56,25 +56,23 @@ type UserDBStructure struct {
 }
 
 // Initiate a new database - consists of a chirpDB and a userDB file
-func NewDB(chirpPath, userPath string) (*AppDatabase, error) {
+func NewDB(dbFiles map[string]string) *AppDatabase {
 	chDB := &ChirpDB{
-		path: chirpPath,
+		path: dbFiles["chirpDBFileName"],
 		mux:  &sync.RWMutex{},
 	}
 	err := ensureDB(chDB)
 	if err != nil {
-		log.Print(err.Error())
-		log.Fatal("error during chirp DB creation")
+		log.Fatalf("error during chirp DB creation: %s", err)
 	}
 
 	uDB := &UserDB{
-		path: userPath,
+		path: dbFiles["userDBFileName"],
 		mux:  &sync.RWMutex{},
 	}
 	err = ensureDB(uDB)
 	if err != nil {
-		log.Print(err.Error())
-		log.Fatal("error during user DB creation")
+		log.Fatalf("error during user DB creation: %s", err)
 	}
 
 	appDB := &AppDatabase{
@@ -82,7 +80,7 @@ func NewDB(chirpPath, userPath string) (*AppDatabase, error) {
 		UserDB:  uDB,
 	}
 
-	return appDB, nil
+	return appDB
 }
 
 // ensureDB creates a new database file if it doesn't exist
