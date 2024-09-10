@@ -1,2 +1,4 @@
 chirpy
-OLD_CODE.go
+chirp_database.json
+user_database.json
+logs/*

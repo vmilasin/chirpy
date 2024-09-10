@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -14,23 +13,30 @@ import (
 )
 
 // Response helper functions
-func respondWithError(w http.ResponseWriter, code int, msg string) {
+func (cfg *apiConfig) respondWithError(w http.ResponseWriter, code int, msg string) {
 	if code > 499 {
-		log.Printf("Responding with 5XX error: %s", msg)
+		output := func() {
+			log.Printf("(%s) Responding with 5XX error: %s.\n", cfg.AppLogs.CurrentTimestamp(), msg)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
 	}
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
-	respondWithJSON(w, code, errorResponse{
+	cfg.respondWithJSON(w, code, errorResponse{
 		Error: msg,
 	})
 }
 
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+func (cfg *apiConfig) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	dat, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
+		output := func() {
+			log.Printf("(%s) There was an error while trying to marshal JSON: %s.\n", cfg.AppLogs.CurrentTimestamp(), err)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+
 		w.WriteHeader(500)
 		return
 	}
@@ -50,11 +56,24 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	t, err := template.ParseFiles("assets/html_templates/metrics.gohtml")
-	checkError(err)
+	// Template HTML
+	metricsTemplate := "assets/html_templates/metrics.gohtml"
+
+	t, err := template.ParseFiles(metricsTemplate)
+	if err != nil {
+		output := func() {
+			log.Printf("(%s) There was an error while trying to parse template %s: %s.\n", cfg.AppLogs.CurrentTimestamp(), metricsTemplate, err)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+	}
 
 	err = t.Execute(w, cfg)
-	checkError(err)
+	if err != nil {
+		output := func() {
+			log.Printf("(%s) There was an error while trying to execute template %s: %s.\n", cfg.AppLogs.CurrentTimestamp(), metricsTemplate, err)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+	}
 }
 
 // Usage metrics reset
@@ -73,15 +92,18 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		// Fetch all chirps from the DB
 		loadedChirps, err := cfg.AppDatabase.ChirpDB.GetChirps()
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Error fetching chirps")
+			output := func() {
+				log.Printf("(%s) An error occured while fetching chirps: %s.\n", cfg.AppLogs.CurrentTimestamp(), err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured while fetching chirps.\n")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusOK, loadedChirps)
+		cfg.respondWithJSON(w, http.StatusOK, loadedChirps)
 	} else {
-		respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method")
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.\n") // HTTP requests should be GET
 	}
 }
 
@@ -91,20 +113,20 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 		// Get the chirp ID from the request
 		requestedId, err := strconv.Atoi(r.PathValue("id"))
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.\n")
 		}
 
 		// Fetch the requested chirp from the DB
 		loadedChirp, err := cfg.AppDatabase.ChirpDB.GetChirp(requestedId)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Chirp not found")
+			cfg.respondWithError(w, http.StatusNotFound, "Chirp not found.\n")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusOK, loadedChirp)
+		cfg.respondWithJSON(w, http.StatusOK, loadedChirp)
 	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.\n") // HTTP requests should be GET
 	}
 }
 
@@ -114,34 +136,38 @@ func (cfg *apiConfig) handlerPostChirp(w http.ResponseWriter, r *http.Request) {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid request body.\n")
 			return
 		}
 
 		// Parse JSON
 		var chirp = database.Chirp{}
 		if err := json.Unmarshal(body, &chirp); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid JSON")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.\n")
 			return
 		}
 
 		// Validate chirp
 		if chirp.Body == "" || len(chirp.Body) > 140 {
-			respondWithError(w, http.StatusBadRequest, "Invalid chirp")
+			cfg.respondWithError(w, http.StatusBadRequest, "Chirp must be long 140 characters or less.\n")
 			return
 		}
 
 		// Create chirp in database
 		newChirp, err := cfg.AppDatabase.ChirpDB.CreateChirp(chirp.Body)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")
+			output := func() {
+				log.Printf("(%s) An error occured during chirp creation: %s.\n", cfg.AppLogs.CurrentTimestamp(), err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to create chirp.\n")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusCreated, newChirp)
+		cfg.respondWithJSON(w, http.StatusCreated, newChirp)
 	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.\n") // HTTP requests should be GET
 	}
 }
 
@@ -151,66 +177,70 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid request body.\n")
 			return
 		}
 
 		// Parse JSON
 		var user = database.User{}
 		if err := json.Unmarshal(body, &user); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid JSON")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.\n")
 			return
 		}
 
 		// Validate if email already exists in the DB
 		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
+			output := func() {
+				log.Printf("(%s) Failed lookup during user creation: %s.\n", cfg.AppLogs.CurrentTimestamp(), err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.\n")
 		}
 		if exists {
-			respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.")
+			cfg.respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.\n")
 		}
 
 		// Validate email complexity
 		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 		re := regexp.MustCompile(emailPattern)
 		if !re.MatchString(user.Email) {
-			respondWithError(w, http.StatusBadRequest, "Invalid e-mail address")
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.\n")
 		}
 
 		/* PASSWORD VALIDATION TEMPORARILY TURNED OFF
 		// Validate password
 		// Check password length
 		if len(*user.Password) < 6 {
-			respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.\n")
 			return
 		}
 
 		// Check for at least one lowercase letter
 		hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
 		if !hasLowercase {
-			respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.\n")
 			return
 		}
 
 		// Check for at least one uppercase letter
 		hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
 		if !hasUppercase {
-			respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.\n")
 			return
 		}
 
 		// Check for at least one digit
 		hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
 		if !hasDigit {
-			respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.\n")
 			return
 		}
 
 		// Check for at least one special character
 		hasSpecial := regexp.MustCompile(`[\W_]`).MatchString(*user.Password)
 		if !hasSpecial {
-			respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character.\n")
 			return
 		}
 		*/
@@ -218,14 +248,18 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 		// Create user in database
 		newUser, err := cfg.AppDatabase.UserDB.CreateUser(user.Email, *user.Password)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create user")
+			output := func() {
+				log.Printf("(%s) Failed to create user %s: %s.\n", cfg.AppLogs.CurrentTimestamp(), newUser.Email, err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to create user.\n")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusCreated, newUser)
+		cfg.respondWithJSON(w, http.StatusCreated, newUser)
 	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.\n") // HTTP requests should be GET
 	}
 }
 
@@ -235,38 +269,42 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request body: %v", err))
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid request body.\n")
 			return
 		}
 
 		// Parse JSON
 		var user = database.User{}
 		if err := json.Unmarshal(body, &user); err != nil {
-			respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON: %v", err))
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.\n")
 			return
 		}
 
 		// Check if the provided user exists in the DB
 		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
+			output := func() {
+				log.Printf("(%s) Failed lookup during user login: %s.\n", cfg.AppLogs.CurrentTimestamp(), err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.\n")
 			return
 		}
 		if !exists {
-			respondWithError(w, http.StatusBadRequest, "Wrong e-mail address. Please type a valid one.")
+			cfg.respondWithError(w, http.StatusBadRequest, "Wrong e-mail address. Please type a valid one.\n")
 			return
 		}
 
 		// Log in to the desired user
 		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(user.Email, *user.Password)
 		if err != nil {
-			respondWithError(w, http.StatusUnauthorized, fmt.Sprintf("User authentication failed: %v", err))
+			cfg.respondWithError(w, http.StatusUnauthorized, "User authentication failed.\n")
 			return
 		}
 
 		// Respond with JSON
-		respondWithJSON(w, http.StatusOK, currentUser)
+		cfg.respondWithJSON(w, http.StatusOK, currentUser)
 	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed) //HTTP requests should be POST
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.\n") // HTTP requests should be GET
 	}
 }

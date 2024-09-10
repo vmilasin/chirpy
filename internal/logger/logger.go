@@ -3,40 +3,87 @@ package logger
 import (
 	"log"
 	"os"
+	"sync"
+	"time"
 )
 
 type AppLogs struct {
-	databaseLog      string
-	databaseErrorLog string
-	chirpLog         string
-	chirpErrorLog    string
-	userLog          string
-	userErrorLog     string
+	SystemLog   string
+	HandlerLog  string
+	DatabaseLog string
+	ChirpLog    string
+	UserLog     string
+	mux         *sync.RWMutex
 }
 
+var logInitMutex sync.Mutex
+
 // Open a file for writing logs
-func openLogFile(path string) {
+func initLog(path string) error {
+	logInitMutex.Lock()
+	defer logInitMutex.Unlock()
+
 	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %s, ERROR: %s", path, err)
+		log.Fatalf("Failed to initialize log file: %s, ERROR: %s", path, err)
+		return err
 	}
 	defer logFile.Close()
+	return nil
+}
+
+// Write logs to a log file
+func (logs *AppLogs) LogToFile(path string, output func()) error {
+	logs.mux.Lock()
+	defer logs.mux.Unlock()
+
+	logFile, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Printf("Failed to open log file: %s, ERROR: %s", path, err)
+		return err
+	}
+	defer logFile.Close()
+	defer log.SetOutput(os.Stdout)
+
+	log.SetOutput(logFile)
+	output()
+	return nil
 }
 
 // Initiate all log files
 func InitiateLogs(logFiles map[string]string) *AppLogs {
-	openLogFile(logFiles["databaseLog"])
-	openLogFile(logFiles["chirpLog"])
-	openLogFile(logFiles["userLog"])
+	initLog(logFiles["systemLog"])
+	initLog(logFiles["databaseLog"])
+	initLog(logFiles["chirpLog"])
+	initLog(logFiles["userLog"])
 
 	appLogs := &AppLogs{
-		databaseLog:      logFiles["databaseLog"],
-		databaseErrorLog: logFiles["databaseErrorLog"],
-		chirpLog:         logFiles["chirpLog"],
-		chirpErrorLog:    logFiles["chirpErrorLog"],
-		userLog:          logFiles["userLog"],
-		userErrorLog:     logFiles["userErrorLog"],
+		SystemLog:   logFiles["systemLog"],
+		DatabaseLog: logFiles["databaseLog"],
+		ChirpLog:    logFiles["chirpLog"],
+		UserLog:     logFiles["userLog"],
+		mux:         &sync.RWMutex{},
 	}
 
 	return appLogs
+}
+
+func (logs *AppLogs) CurrentTimestamp() string {
+	// Get the current timestamp
+	now := time.Now()
+
+	// Load the CET timezone
+	location, err := time.LoadLocation("CET")
+	if err != nil {
+		log.Printf("Error loading location: %s", err)
+		return ""
+	}
+
+	// Convert the current time to CET
+	cetTime := now.In(location)
+
+	// Format the time as needed (e.g., RFC3339 format)
+	cetTimeString := cetTime.Format(time.RFC3339)
+
+	return cetTimeString
 }

@@ -23,6 +23,8 @@ func main() {
 	databaseFiles["userDBFileName"] = "user_database.json"
 	// Log file paths
 	logFiles := make((map[string]string), 3)
+	logFiles["systemLog"] = filepath.Join(baseDir, "logs", "system.log")
+	logFiles["handlerErrorLog"] = filepath.Join(baseDir, "logs", "handler_error.log")
 	logFiles["databaseLog"] = filepath.Join(baseDir, "logs", "database.log")
 	logFiles["databaseErrorLog"] = filepath.Join(baseDir, "logs", "database_error.log")
 	logFiles["chirpLog"] = filepath.Join(baseDir, "logs", "chirp.log")
@@ -37,9 +39,10 @@ func main() {
 
 	if *dbg {
 		log.Print("DEBUG MODE INITIATED")
-		// Check if the chirp file already exists
 		dropFile(databaseFiles["chirpDBFileName"])
 		dropFile(databaseFiles["userDBFileName"])
+		dropFile(logFiles["systemLog"])
+		dropFile(logFiles["handlerErrorLog"])
 		dropFile(logFiles["databaseLog"])
 		dropFile(logFiles["databaseErrorLog"])
 		dropFile(logFiles["chirpLog"])
@@ -49,8 +52,7 @@ func main() {
 	}
 
 	// Initialize API config
-	cfg, err := newApiConfig(databaseFiles, logFiles)
-	checkError(err)
+	cfg := newApiConfig(databaseFiles, logFiles)
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -79,13 +81,6 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-// Log error checks
-func checkError(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 // Drop files in debug mode
 func dropFile(path string) {
 	// Check if the file already exists
@@ -96,9 +91,17 @@ func dropFile(path string) {
 		if err != nil {
 			log.Printf("DEBUG: There was an issue when trying to remove the old file: %s", path)
 		}
-		checkError(err)
 		log.Printf("DEBUG: old file %s successfully removed.", path)
 	} else {
-		log.Print("DEBUG: No old file with path %s to remove", path)
+		log.Printf("DEBUG: No old file with path %s to remove", path)
 	}
 }
+
+/*
+// Log error checks
+func checkError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+*/
