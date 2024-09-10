@@ -53,12 +53,14 @@ func (logs *AppLogs) LogToFile(path string, output func()) error {
 // Initiate all log files
 func InitiateLogs(logFiles map[string]string) *AppLogs {
 	initLog(logFiles["systemLog"])
+	initLog(logFiles["handlerLog"])
 	initLog(logFiles["databaseLog"])
 	initLog(logFiles["chirpLog"])
 	initLog(logFiles["userLog"])
 
 	appLogs := &AppLogs{
 		SystemLog:   logFiles["systemLog"],
+		HandlerLog:  logFiles["handlerLog"],
 		DatabaseLog: logFiles["databaseLog"],
 		ChirpLog:    logFiles["chirpLog"],
 		UserLog:     logFiles["userLog"],

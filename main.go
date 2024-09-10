@@ -22,15 +22,12 @@ func main() {
 	databaseFiles["chirpDBFileName"] = "chirp_database.json"
 	databaseFiles["userDBFileName"] = "user_database.json"
 	// Log file paths
-	logFiles := make((map[string]string), 3)
+	logFiles := make((map[string]string), 5)
 	logFiles["systemLog"] = filepath.Join(baseDir, "logs", "system.log")
-	logFiles["handlerErrorLog"] = filepath.Join(baseDir, "logs", "handler_error.log")
+	logFiles["handlerLog"] = filepath.Join(baseDir, "logs", "handler.log")
 	logFiles["databaseLog"] = filepath.Join(baseDir, "logs", "database.log")
-	logFiles["databaseErrorLog"] = filepath.Join(baseDir, "logs", "database_error.log")
 	logFiles["chirpLog"] = filepath.Join(baseDir, "logs", "chirp.log")
-	logFiles["chirpErrorLog"] = filepath.Join(baseDir, "logs", "chirp_error.log")
 	logFiles["userLog"] = filepath.Join(baseDir, "logs", "user.log")
-	logFiles["userErrorLog"] = filepath.Join(baseDir, "logs", "user_error.log")
 
 	// --debug flag drops the table at the start for development purposes
 	// WARNING: THIS DROPS THE DATABASE FILE!!!
@@ -42,13 +39,10 @@ func main() {
 		dropFile(databaseFiles["chirpDBFileName"])
 		dropFile(databaseFiles["userDBFileName"])
 		dropFile(logFiles["systemLog"])
-		dropFile(logFiles["handlerErrorLog"])
+		dropFile(logFiles["handlerLog"])
 		dropFile(logFiles["databaseLog"])
-		dropFile(logFiles["databaseErrorLog"])
 		dropFile(logFiles["chirpLog"])
-		dropFile(logFiles["chirpErrorLog"])
 		dropFile(logFiles["userLog"])
-		dropFile(logFiles["userErrorLog"])
 	}
 
 	// Initialize API config
@@ -96,12 +90,3 @@ func dropFile(path string) {
 		log.Printf("DEBUG: No old file with path %s to remove", path)
 	}
 }
-
-/*
-// Log error checks
-func checkError(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-*/
