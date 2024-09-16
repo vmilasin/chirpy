@@ -7,13 +7,16 @@ import (
 )
 
 func TestCreateChirp(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	modckDB := InitMockDB()
 
 	// Basic chirp
 	newChirp := "This is a new chirp."
 	_, err := modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
-		t.Errorf("Failed to create a new chirp: %s\nERROR: %s", newChirp, err)
+		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
 	}
 	chirpDBContent, err := os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {
@@ -24,10 +27,10 @@ func TestCreateChirp(t *testing.T) {
 		t.Errorf("Failed to unmarshal ChirpDB: %v", err)
 	}
 	if chirp, exists := chirpDB.Chirps[1]; !exists {
-		t.Fatalf("Expected chirp with ID %d to exist", 1)
+		t.Fatalf("Expected chirp with ID '%d' to exist", 1)
 	} else {
 		if chirp.Body != newChirp {
-			t.Errorf("Expected chirp body to be %s, got %s", newChirp, chirp.Body)
+			t.Errorf("Expected chirp body to be '%s', got '%s'", newChirp, chirp.Body)
 		}
 	}
 
@@ -35,7 +38,7 @@ func TestCreateChirp(t *testing.T) {
 	newChirp = "This is another chirp.'); DROP TABLE Chirps;--)"
 	_, err = modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
-		t.Errorf("Failed to create a new chirp: %s\nERROR: %s", newChirp, err)
+		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
 	}
 	chirpDBContent, err = os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {
@@ -45,10 +48,10 @@ func TestCreateChirp(t *testing.T) {
 		t.Errorf("Failed to unmarshal ChirpDB: %v", err)
 	}
 	if chirp, exists := chirpDB.Chirps[2]; !exists {
-		t.Fatalf("Expected chirp with ID %d to exist", 2)
+		t.Fatalf("Expected chirp with ID '%d' to exist", 2)
 	} else {
 		if chirp.Body != newChirp {
-			t.Errorf("Expected chirp body to be %s, got %s", newChirp, chirp.Body) // "You have no power here! :)"
+			t.Errorf("Expected chirp body to be '%s', got '%s'", newChirp, chirp.Body) // "You have no power here! :)"
 		}
 	}
 
@@ -57,7 +60,7 @@ func TestCreateChirp(t *testing.T) {
 	cleanNewChirp := "This site creates ****!"
 	_, err = modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
-		t.Errorf("Failed to create a new chirp: %s\nERROR: %s", newChirp, err)
+		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
 	}
 	chirpDBContent, err = os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {
@@ -67,10 +70,10 @@ func TestCreateChirp(t *testing.T) {
 		t.Errorf("Failed to unmarshal ChirpDB: %v", err)
 	}
 	if chirp, exists := chirpDB.Chirps[3]; !exists {
-		t.Fatalf("Expected chirp with ID %d to exist", 3)
+		t.Fatalf("Expected chirp with ID: '%d' to exist", 3)
 	} else {
-		if chirp.Body != newChirp {
-			t.Errorf("Expected chirp body to be %s, got %s", cleanNewChirp, chirp.Body)
+		if chirp.Body != cleanNewChirp {
+			t.Errorf("Expected chirp body to be: '%s', got: '%s'", cleanNewChirp, chirp.Body)
 		}
 	}
 
@@ -84,6 +87,9 @@ func TestCreateChirp(t *testing.T) {
 }
 
 func TestGetAllChirps(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	modckDB := InitMockDB()
 
 	body1 := "This is a new chirp."
@@ -106,11 +112,11 @@ func TestGetAllChirps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to fetch all chirps.\nERROR: %s", err)
 	} else if chirpList[0].ID != 1 || chirpList[0].Body != body1 {
-		t.Errorf("First chirp invalid, expected ID: %d, Body: %s, got ID: %d, Body: %s", 1, body1, chirpList[0].ID, chirpList[0].Body)
+		t.Errorf("First chirp invalid, expected ID: '%d', Body: '%s', got ID: '%d', Body: '%s'", 1, body1, chirpList[0].ID, chirpList[0].Body)
 	} else if chirpList[1].ID != 2 || chirpList[1].Body != body2 {
-		t.Errorf("First chirp invalid, expected ID: %d, Body: %s, got ID: %d, Body: %s", 2, body2, chirpList[1].ID, chirpList[1].Body)
+		t.Errorf("First chirp invalid, expected ID: '%d', Body: '%s', got ID: '%d', Body: '%s'", 2, body2, chirpList[1].ID, chirpList[1].Body)
 	} else if chirpList[2].ID != 3 || chirpList[2].Body != body3 {
-		t.Errorf("First chirp invalid, expected ID: %d, Body: %s, got ID: %d, Body: %s", 3, body3, chirpList[2].ID, chirpList[2].Body)
+		t.Errorf("First chirp invalid, expected ID: '%d', Body: '%s', got ID: '%d', Body: '%s'", 3, body3, chirpList[2].ID, chirpList[2].Body)
 	}
 
 	errList := TeardownMockDB()

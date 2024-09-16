@@ -6,8 +6,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
+
+var mutex sync.Mutex
 
 // Helper function to check if a file exists
 func FileExists(filepath string) bool {
@@ -54,6 +57,9 @@ func TeardownMockDB() []error {
 }
 
 func TestNewDB(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	mockDB := InitMockDB()
 
 	// Chirp DB

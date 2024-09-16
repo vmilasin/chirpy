@@ -6,10 +6,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/vmilasin/chirpy/internal/database"
 )
+
+var mutex sync.Mutex
 
 // Helper function to check if a file exists
 func FileExists(filepath string) bool {
@@ -49,15 +52,15 @@ func TeardownMockApiConfig() []error {
 	}
 	// Database file paths
 	mockDatabaseFiles := make(map[string]string, 2)
-	mockDatabaseFiles["chirpDBFileName"] = "chirp_database_test.json"
-	mockDatabaseFiles["userDBFileName"] = "user_database_test.json"
+	mockDatabaseFiles["chirpDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "chirp_database_test.json")
+	mockDatabaseFiles["userDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "user_database_test.json")
 	// Log file paths
 	mockLogFiles := make((map[string]string), 5)
-	mockLogFiles["systemLog"] = filepath.Join(baseDir, "logs", "test", "system_test.log")
-	mockLogFiles["handlerLog"] = filepath.Join(baseDir, "logs", "test", "handler_test.log")
-	mockLogFiles["databaseLog"] = filepath.Join(baseDir, "logs", "test", "database_test.log")
-	mockLogFiles["chirpLog"] = filepath.Join(baseDir, "logs", "test", "chirp_test.log")
-	mockLogFiles["userLog"] = filepath.Join(baseDir, "logs", "test", "user_test.log")
+	mockLogFiles["systemLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "system_test.log")
+	mockLogFiles["handlerLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "handler_test.log")
+	mockLogFiles["databaseLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "database_test.log")
+	mockLogFiles["chirpLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "chirp_test.log")
+	mockLogFiles["userLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "user_test.log")
 
 	for index, file := range mockDatabaseFiles {
 		err := os.Remove(file)
@@ -78,6 +81,9 @@ func TeardownMockApiConfig() []error {
 }
 
 func TestNewApiConfig(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	mockCFG := InitMockApiConfig()
 
 	// DB files
