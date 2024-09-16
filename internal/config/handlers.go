@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 )
 
 // Response helper functions
-func (cfg *apiConfig) respondWithError(w http.ResponseWriter, code int, msg string) {
+func (cfg *ApiConfig) respondWithError(w http.ResponseWriter, code int, msg string) {
 	if code > 499 {
 		output := func() {
 			log.Printf("(%s) Responding with 5XX error: %s.\n", cfg.AppLogs.CurrentTimestamp(), msg)
@@ -28,7 +28,7 @@ func (cfg *apiConfig) respondWithError(w http.ResponseWriter, code int, msg stri
 	})
 }
 
-func (cfg *apiConfig) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+func (cfg *ApiConfig) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	dat, err := json.Marshal(payload)
 	if err != nil {
@@ -45,14 +45,14 @@ func (cfg *apiConfig) respondWithJSON(w http.ResponseWriter, code int, payload i
 }
 
 // Health check
-func handlerReadiness(w http.ResponseWriter, r *http.Request) {
+func HandlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
 // Usage metrics
-func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
@@ -77,7 +77,7 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 // Usage metrics reset
-func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerMetricsReset(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
@@ -87,7 +87,7 @@ func (cfg *apiConfig) handlerMetricsReset(w http.ResponseWriter, r *http.Request
 }
 
 // GET all chirps
-func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		// Fetch all chirps from the DB
 		loadedChirps, err := cfg.AppDatabase.ChirpDB.GetChirps()
@@ -108,7 +108,7 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET a chirp
-func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		// Get the chirp ID from the request
 		requestedId, err := strconv.Atoi(r.PathValue("id"))
@@ -131,7 +131,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST a chirp
-func (cfg *apiConfig) handlerPostChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerPostChirp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
@@ -172,7 +172,7 @@ func (cfg *apiConfig) handlerPostChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST an User
-func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
@@ -264,7 +264,7 @@ func (cfg *apiConfig) handlerPostUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // User login
-func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Read the request body
 		body, err := io.ReadAll(r.Body)

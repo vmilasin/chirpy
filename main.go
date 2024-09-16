@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/vmilasin/chirpy/internal/config"
 )
 
 func main() {
 	baseDir, err := os.Getwd()
 	if err != nil {
-		log.Print(err)
+		log.Fatal(err)
 	}
 
 	// Configure fileserver root path and port to serve the site on
@@ -46,7 +48,7 @@ func main() {
 	}
 
 	// Initialize API config
-	cfg := newApiConfig(databaseFiles, logFiles)
+	cfg := config.NewApiConfig(databaseFiles, logFiles)
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -55,15 +57,15 @@ func main() {
 	fileserver := http.FileServer(http.Dir(filepathRoot))
 
 	/* HANDLER REGISTRATION: */
-	mux.Handle("/app/*", cfg.middlewareMetricsInc(http.StripPrefix("/app", fileserver)))
-	mux.HandleFunc("GET /api/healthz", handlerReadiness)
-	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
-	mux.HandleFunc("GET /api/reset", cfg.handlerMetricsReset)
-	mux.HandleFunc("GET /api/chirps", cfg.handlerGetChirps)
-	mux.HandleFunc("GET /api/chirps/{id}", cfg.handlerGetChirp)
-	mux.HandleFunc("POST /api/chirps", cfg.handlerPostChirp)
-	mux.HandleFunc("POST /api/users", cfg.handlerPostUser)
-	mux.HandleFunc("POST /api/login", cfg.handlerLogin)
+	mux.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", fileserver)))
+	mux.HandleFunc("GET /api/healthz", config.HandlerReadiness)
+	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
+	mux.HandleFunc("GET /api/reset", cfg.HandlerMetricsReset)
+	mux.HandleFunc("GET /api/chirps", cfg.HandlerGetChirps)
+	mux.HandleFunc("GET /api/chirps/{id}", cfg.HandlerGetChirp)
+	mux.HandleFunc("POST /api/chirps", cfg.HandlerPostChirp)
+	mux.HandleFunc("POST /api/users", cfg.HandlerPostUser)
+	mux.HandleFunc("POST /api/login", cfg.HandlerLogin)
 
 	// Server parameters
 	server := &http.Server{

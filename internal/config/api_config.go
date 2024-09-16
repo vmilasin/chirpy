@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"log"
@@ -8,18 +8,18 @@ import (
 	"github.com/vmilasin/chirpy/internal/logger"
 )
 
-type apiConfig struct {
+type ApiConfig struct {
 	FileserverHits int
 	AppDatabase    *database.AppDatabase
 	AppLogs        *logger.AppLogs
 }
 
-func newApiConfig(dbFiles, logFiles map[string]string) *apiConfig {
+func NewApiConfig(dbFiles, logFiles map[string]string) *ApiConfig {
 	// Initialize chirp DB
 	internalDB := database.NewDB(dbFiles)
 	internalLogs := logger.InitiateLogs(logFiles)
 
-	cfg := &apiConfig{
+	cfg := &ApiConfig{
 		FileserverHits: 0,
 		AppDatabase:    internalDB,
 		AppLogs:        internalLogs,
@@ -58,7 +58,7 @@ func newApiConfig(dbFiles, logFiles map[string]string) *apiConfig {
 }
 
 /* MIDDLEWARE: */
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.FileserverHits += 1
 		next.ServeHTTP(w, r)
