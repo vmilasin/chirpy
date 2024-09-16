@@ -127,3 +127,45 @@ func TestGetAllChirps(t *testing.T) {
 		t.Fatal("Full teardown unsuccessful")
 	}
 }
+
+func TestGetSpecificChirp(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	modckDB := InitMockDB()
+
+	body1 := "This is a new chirp."
+	_, err := modckDB.ChirpDB.CreateChirp(body1)
+	if err != nil {
+		t.Errorf("Failed to create a new chirp.\nERROR: %s", err)
+	}
+	body2 := "This is another chirp."
+	_, err = modckDB.ChirpDB.CreateChirp(body2)
+	if err != nil {
+		t.Errorf("Failed to create a new chirp.\nERROR: %s", err)
+	}
+	body3 := "This is yet another chirp."
+	_, err = modckDB.ChirpDB.CreateChirp(body3)
+	if err != nil {
+		t.Errorf("Failed to create a new chirp.\nERROR: %s", err)
+	}
+
+	targetChirp, err := modckDB.ChirpDB.GetChirp(2)
+	if err != nil {
+		t.Fatalf("Failed to fetch chirp with ID: %d.\nERROR: %s", 1, err)
+	} else if targetChirp.ID != 2 || targetChirp.Body != body2 {
+		t.Errorf("Desired chirp fetch failed, expected ID: '%d', Body: '%s', got ID: '%d', Body: '%s'", 2, body2, targetChirp.ID, targetChirp.Body)
+	}
+	targetChirp, err = modckDB.ChirpDB.GetChirp(5)
+	if err == nil {
+		t.Fatalf("Received (but shouldn't) chirp with ID: %d.\nERROR: %s", 5, err)
+	}
+
+	errList := TeardownMockDB()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
