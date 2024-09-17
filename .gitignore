@@ -1,3 +1,4 @@
 chirpy
 *.json
 *.log
+coverage.out

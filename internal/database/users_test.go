@@ -126,4 +126,12 @@ func TestUserLogin(t *testing.T) {
 	if err.Error() != expectedError.Error() {
 		t.Errorf("An error should've occured, but didn't: '%s'", expectedError)
 	}
+
+	errList := TeardownMockDB()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
 }
