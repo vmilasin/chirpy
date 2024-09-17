@@ -14,9 +14,12 @@ func TestCreateChirp(t *testing.T) {
 
 	// Basic chirp
 	newChirp := "This is a new chirp."
-	_, err := modckDB.ChirpDB.CreateChirp(newChirp)
+	returnChirp, err := modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
 		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
+	}
+	if returnChirp.Body != newChirp || returnChirp.ID != 1 {
+		t.Errorf("Failed to return new chirp. Expected ID: '%d', body: '%s', got ID: '%d', body: '%s'.", 1, newChirp, returnChirp.ID, returnChirp.Body)
 	}
 	chirpDBContent, err := os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {
@@ -36,9 +39,12 @@ func TestCreateChirp(t *testing.T) {
 
 	// Chirp ID 2
 	newChirp = "This is another chirp.'); DROP TABLE Chirps;--)"
-	_, err = modckDB.ChirpDB.CreateChirp(newChirp)
+	returnChirp, err = modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
 		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
+	}
+	if returnChirp.Body != newChirp || returnChirp.ID != 2 {
+		t.Errorf("Failed to return new chirp. Expected ID: '%d', body: '%s', got ID: '%d', body: '%s'.", 2, newChirp, returnChirp.ID, returnChirp.Body)
 	}
 	chirpDBContent, err = os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {
@@ -58,9 +64,12 @@ func TestCreateChirp(t *testing.T) {
 	// Profanity check
 	newChirp = "This site creates kerfuffle!"
 	cleanNewChirp := "This site creates ****!"
-	_, err = modckDB.ChirpDB.CreateChirp(newChirp)
+	returnChirp, err = modckDB.ChirpDB.CreateChirp(newChirp)
 	if err != nil {
 		t.Errorf("Failed to create a new chirp: '%s'\nERROR: %s", newChirp, err)
+	}
+	if returnChirp.Body != cleanNewChirp || returnChirp.ID != 3 {
+		t.Errorf("Failed to return new chirp. Expected ID: '%d', body: '%s', got ID: '%d', body: '%s'.", 3, cleanNewChirp, returnChirp.ID, returnChirp.Body)
 	}
 	chirpDBContent, err = os.ReadFile(modckDB.ChirpDB.Path())
 	if err != nil {

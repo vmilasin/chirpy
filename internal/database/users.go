@@ -26,7 +26,7 @@ func (db *UserDB) UserLookup(userEmail string) (int, bool, error) {
 	id, exists := dbDat.UserLookup[userEmail]
 
 	if !exists {
-		return 0, false, nil
+		return 0, false, errors.New("user does not exist")
 	}
 
 	return id, true, nil
@@ -91,6 +91,7 @@ func CreatePasswordHash(password string) ([]byte, error) {
 func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) {
 	db.mux.RLock()
 	defer db.mux.RUnlock()
+
 	userID, _, err := db.UserLookup(userEmail)
 	if err != nil {
 		return ReturnUser{}, err
