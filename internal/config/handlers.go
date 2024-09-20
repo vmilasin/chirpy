@@ -291,6 +291,10 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 
 		// Check if the provided user exists in the DB
 		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
+		if !exists {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong e-mail address. Please type a valid one.")
+			return
+		}
 		if err != nil {
 			output := func() {
 				log.Printf("Failed lookup during user login: %s.\n", err)
@@ -299,15 +303,11 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
 			return
 		}
-		if !exists {
-			cfg.respondWithError(w, http.StatusBadRequest, "Wrong e-mail address. Please type a valid one.")
-			return
-		}
 
 		// Log in to the desired user
 		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(user.Email, *user.Password)
 		if err != nil {
-			cfg.respondWithError(w, http.StatusUnauthorized, "User authentication failed.")
+			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong password.")
 			return
 		}
 

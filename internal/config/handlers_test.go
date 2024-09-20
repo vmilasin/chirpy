@@ -225,16 +225,14 @@ func TestHandlerGetChirp(t *testing.T) {
 	}
 }
 
-func TestHandlerPostChirp(t *testing.T) {
+func TestHandlerPostChirpSuccess(t *testing.T) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new chirp to post
 	chirpBody := `{"body":"This is a test chirp."}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/chirps", strings.NewReader(chirpBody))
 	if err != nil {
 		t.Fatal(err)
@@ -250,19 +248,16 @@ func TestHandlerPostChirp(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusCreated)
 	}
 
-	// Parse the response body
 	var createdChirp database.Chirp
 	err = json.Unmarshal(rr.Body.Bytes(), &createdChirp)
 	if err != nil {
 		t.Fatalf("Could not parse response body: '%v'", err)
 	}
 
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if createdChirp.Body != "This is a test chirp." {
 		t.Errorf("handler returned wrong chirp body: got '%v' want '%v'", createdChirp.Body, "This is a test chirp.")
 	}
 
-	// Optionally: Check if the chirp was added to the database (depending on your mock db implementation)
 	loadedChirp, err := mockApiConfig.AppDatabase.ChirpDB.GetChirp(createdChirp.ID)
 	if err != nil || loadedChirp.Body != createdChirp.Body {
 		t.Errorf("Chirp was not correctly added to the database: got '%v' want '%v'", loadedChirp.Body, createdChirp.Body)
@@ -277,16 +272,14 @@ func TestHandlerPostChirp(t *testing.T) {
 	}
 }
 
-func TestHandlerPostUser(t *testing.T) {
+func TestHandlerPostUserSuccess(t *testing.T) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"vader@darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -302,19 +295,16 @@ func TestHandlerPostUser(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusCreated)
 	}
 
-	// Parse the response body
 	var createdUser database.ReturnUser
 	err = json.Unmarshal(rr.Body.Bytes(), &createdUser)
 	if err != nil {
 		t.Fatalf("Could not parse response body: %v", err)
 	}
 
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if createdUser.Email != "vader@darth.com" {
 		t.Errorf("handler returned user email: got '%v' want '%v'", createdUser.Email, "vader@darth.com")
 	}
 
-	// Optionally: Check if the chirp was added to the database (depending on your mock db implementation)
 	loadedID, exists, err := mockApiConfig.AppDatabase.UserDB.UserLookup(createdUser.Email)
 	if err != nil || createdUser.ID != loadedID || !exists {
 		t.Errorf("User was not correctly added to the database: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", createdUser.Email, createdUser.ID, "vader@darth.com", 1)
@@ -335,10 +325,8 @@ func TestHandlerPostUserWrongEmailEmpty(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -354,7 +342,6 @@ func TestHandlerPostUserWrongEmailEmpty(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -362,7 +349,6 @@ func TestHandlerPostUserWrongEmailEmpty(t *testing.T) {
 	}
 
 	expectedError := "Invalid e-mail address."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -382,10 +368,8 @@ func TestHandlerPostUserWrongEmailNoDomain(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"vader@darth", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -401,7 +385,6 @@ func TestHandlerPostUserWrongEmailNoDomain(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -409,7 +392,6 @@ func TestHandlerPostUserWrongEmailNoDomain(t *testing.T) {
 	}
 
 	expectedError := "Invalid e-mail address."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -429,10 +411,8 @@ func TestHandlerPostUserWrongEmailNoAt(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"vader-darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -448,7 +428,6 @@ func TestHandlerPostUserWrongEmailNoAt(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -456,7 +435,6 @@ func TestHandlerPostUserWrongEmailNoAt(t *testing.T) {
 	}
 
 	expectedError := "Invalid e-mail address."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -476,10 +454,8 @@ func TestHandlerPostUserEmptyPW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"vader@darth.com", "password":""}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -495,7 +471,6 @@ func TestHandlerPostUserEmptyPW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -503,7 +478,6 @@ func TestHandlerPostUserEmptyPW(t *testing.T) {
 	}
 
 	expectedError := "The password should be at least 6 characters long."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -523,10 +497,8 @@ func TestHandlerPostUserLessThanSixCharsPW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"hodor@thrones.com", "password":"hodor"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -542,7 +514,6 @@ func TestHandlerPostUserLessThanSixCharsPW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -550,7 +521,6 @@ func TestHandlerPostUserLessThanSixCharsPW(t *testing.T) {
 	}
 
 	expectedError := "The password should be at least 6 characters long."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -570,10 +540,8 @@ func TestHandlerPostUserNoSmallCapsPW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"sidious@darth.com", "password":"UNLIMITED POOOOOOWEEEEEEEEEEEEERRRRRRRRRRRRRR!!!11!!1!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -589,7 +557,6 @@ func TestHandlerPostUserNoSmallCapsPW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -597,7 +564,6 @@ func TestHandlerPostUserNoSmallCapsPW(t *testing.T) {
 	}
 
 	expectedError := "The password should contain at least one lowercase letter."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -617,10 +583,8 @@ func TestHandlerPostUserNoUppercasePW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"obi@wan.com", "password":"hello there!123"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -636,7 +600,6 @@ func TestHandlerPostUserNoUppercasePW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -644,7 +607,6 @@ func TestHandlerPostUserNoUppercasePW(t *testing.T) {
 	}
 
 	expectedError := "The password should contain at least one uppercase letter."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -664,10 +626,8 @@ func TestHandlerPostUserNoNumericPW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"obi@wan.com", "password":"Hello there!"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -683,7 +643,6 @@ func TestHandlerPostUserNoNumericPW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -691,7 +650,6 @@ func TestHandlerPostUserNoNumericPW(t *testing.T) {
 	}
 
 	expectedError := "The password should contain at least one digit."
-	// Ensure the returned chirp matches the posted data (with added ID)
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
@@ -711,10 +669,8 @@ func TestHandlerPostUserSpecialCharsPW(t *testing.T) {
 
 	mockApiConfig := InitMockApiConfig()
 
-	// Create a new user to post
 	userBody := `{"email":"obi@wan.com", "password":"Hello there 1234"}`
 
-	// Create a request to pass to the handler
 	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
 	if err != nil {
 		t.Fatal(err)
@@ -730,7 +686,6 @@ func TestHandlerPostUserSpecialCharsPW(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
 	}
 
-	// Parse the response body
 	var returnError errorResponse
 	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
 	if err != nil {
@@ -738,7 +693,146 @@ func TestHandlerPostUserSpecialCharsPW(t *testing.T) {
 	}
 
 	expectedError := "The password should contain at least one special character. (space character excluded)"
-	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerUserLoginSuccess(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	userBody := `{"email":"vader@darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusOK)
+	}
+
+	var loginUser database.ReturnUser
+	err = json.Unmarshal(rr.Body.Bytes(), &loginUser)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	if loginUser.Email != "vader@darth.com" {
+		t.Errorf("handler returned user email: got '%v' want '%v'", loginUser.Email, "vader@darth.com")
+	}
+
+	loadedID, exists, err := mockApiConfig.AppDatabase.UserDB.UserLookup(loginUser.Email)
+	if err != nil || loginUser.ID != loadedID || !exists {
+		t.Errorf("User was not correctly logged in: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", loginUser.Email, loginUser.ID, "vader@darth.com", 1)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerUserLoginWrongPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	// Create a new user to post
+	userBody := `{"email":"vader@darth.com", "password":"xxx.123"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusUnauthorized)
+	}
+
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Wrong password."
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerUserLoginWrongUser(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	// Create a new user to post
+	userBody := `{"email":"sidious@darth.com", "password":"xxx.123"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusUnauthorized)
+	}
+
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Wrong e-mail address. Please type a valid one."
 	if returnError.Error != expectedError {
 		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
