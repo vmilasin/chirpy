@@ -328,3 +328,426 @@ func TestHandlerPostUser(t *testing.T) {
 		t.Fatal("Full teardown unsuccessful")
 	}
 }
+
+func TestHandlerPostUserWrongEmailEmpty(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Invalid e-mail address."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserWrongEmailNoDomain(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"vader@darth", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Invalid e-mail address."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserWrongEmailNoAt(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"vader-darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Invalid e-mail address."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserEmptyPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"vader@darth.com", "password":""}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should be at least 6 characters long."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserLessThanSixCharsPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"hodor@thrones.com", "password":"hodor"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should be at least 6 characters long."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserNoSmallCapsPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"sidious@darth.com", "password":"UNLIMITED POOOOOOWEEEEEEEEEEEEERRRRRRRRRRRRRR!!!11!!1!"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should contain at least one lowercase letter."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserNoUppercasePW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"obi@wan.com", "password":"hello there!123"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should contain at least one uppercase letter."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserNoNumericPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"obi@wan.com", "password":"Hello there!"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should contain at least one digit."
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestHandlerPostUserSpecialCharsPW(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	mockApiConfig := InitMockApiConfig()
+
+	// Create a new user to post
+	userBody := `{"email":"obi@wan.com", "password":"Hello there 1234"}`
+
+	// Create a request to pass to the handler
+	req, err := http.NewRequest("POST", "/api/users", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerPostUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusBadRequest)
+	}
+
+	// Parse the response body
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "The password should contain at least one special character. (space character excluded)"
+	// Ensure the returned chirp matches the posted data (with added ID)
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}

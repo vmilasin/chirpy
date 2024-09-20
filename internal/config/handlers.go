@@ -13,6 +13,10 @@ import (
 	"github.com/vmilasin/chirpy/internal/database"
 )
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
 // Response helper functions
 func (cfg *ApiConfig) respondWithError(w http.ResponseWriter, code int, msg string) {
 	if code > 499 {
@@ -23,9 +27,6 @@ func (cfg *ApiConfig) respondWithError(w http.ResponseWriter, code int, msg stri
 		if err != nil {
 			log.Printf("Error writing logs to file '%s': %s", cfg.AppLogs.HandlerLog, err)
 		}
-	}
-	type errorResponse struct {
-		Error string `json:"error"`
 	}
 	cfg.respondWithJSON(w, code, errorResponse{
 		Error: msg,
@@ -215,9 +216,9 @@ func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 		re := regexp.MustCompile(emailPattern)
 		if !re.MatchString(user.Email) {
 			cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
+			return
 		}
 
-		/* PASSWORD VALIDATION TEMPORARILY TURNED OFF
 		// Validate password
 		// Check password length
 		if len(*user.Password) < 6 {
@@ -247,12 +248,11 @@ func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check for at least one special character
-		hasSpecial := regexp.MustCompile(`[\W_]`).MatchString(*user.Password)
+		hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(*user.Password)
 		if !hasSpecial {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character.")
+			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
 			return
 		}
-		*/
 
 		// Create user in database
 		newUser, err := cfg.AppDatabase.UserDB.CreateUser(user.Email, *user.Password)
