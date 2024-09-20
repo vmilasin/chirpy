@@ -26,7 +26,7 @@ func NewApiConfig(dbFiles, logFiles map[string]string) *ApiConfig {
 	}
 
 	loggerOutput := func() {
-		output := `(%s) (
+		output := `(
 		Database files initialized {
 			chirp database: %s
 			user database: %s
@@ -40,7 +40,6 @@ func NewApiConfig(dbFiles, logFiles map[string]string) *ApiConfig {
 		)`
 		log.Printf(
 			output,
-			cfg.AppLogs.CurrentTimestamp(),
 			cfg.AppDatabase.ChirpDB.Path(),
 			cfg.AppDatabase.UserDB.Path(),
 			cfg.AppLogs.SystemLog,

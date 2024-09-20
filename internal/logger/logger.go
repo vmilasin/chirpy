@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 )
 
 type AppLogs struct {
@@ -70,6 +69,7 @@ func InitiateLogs(logFiles map[string]string) *AppLogs {
 	return appLogs
 }
 
+/* Unnecessary so far
 func (logs *AppLogs) CurrentTimestamp() string {
 	// Get the current timestamp
 	now := time.Now()
@@ -89,3 +89,4 @@ func (logs *AppLogs) CurrentTimestamp() string {
 
 	return cetTimeString
 }
+*/

@@ -58,7 +58,7 @@ func main() {
 
 	/* HANDLER REGISTRATION: */
 	mux.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", fileserver)))
-	mux.HandleFunc("GET /api/healthz", config.HandlerReadiness)
+	mux.HandleFunc("GET /api/healthz", cfg.HandlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.HandlerMetricsReset)
 	mux.HandleFunc("GET /api/chirps", cfg.HandlerGetChirps)

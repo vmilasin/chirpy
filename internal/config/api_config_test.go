@@ -12,7 +12,7 @@ import (
 	"github.com/vmilasin/chirpy/internal/database"
 )
 
-var mutex sync.Mutex
+var mutex = &sync.Mutex{}
 
 // Helper function to check if a file exists
 func FileExists(filepath string) bool {
