@@ -72,6 +72,7 @@ func (cfg *ApiConfig) HandlerMetrics(w http.ResponseWriter, r *http.Request) {
 			log.Printf("There was an error while trying to parse template %s: %s.", metricsTemplate, err)
 		}
 		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+		return
 	}
 
 	err = t.Execute(w, cfg)
@@ -117,14 +118,6 @@ func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
 // GET a chirp
 func (cfg *ApiConfig) HandlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		/*
-			// Get the chirp ID from the request
-			requestedId, err := strconv.Atoi(r.PathValue("id"))
-			if err != nil {
-				cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.")
-			}
-		*/
-
 		pathParts := strings.Split(r.URL.Path, "/")
 		if len(pathParts) < 4 {
 			cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.")
@@ -189,7 +182,7 @@ func (cfg *ApiConfig) HandlerPostChirp(w http.ResponseWriter, r *http.Request) {
 		// Respond with JSON
 		cfg.respondWithJSON(w, http.StatusCreated, newChirp)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET - added for extra security
 	}
 }
 
@@ -212,15 +205,9 @@ func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 
 		// Validate if email already exists in the DB
 		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
-		if err != nil {
-			output := func() {
-				log.Printf("Failed lookup during user creation: %s.", err)
-			}
-			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
-		}
 		if exists {
 			cfg.respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.")
+			return
 		}
 
 		// Validate email complexity
