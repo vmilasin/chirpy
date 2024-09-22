@@ -13,6 +13,12 @@ type User struct {
 	PasswordHash *[]byte `json:"passwordHash"`
 }
 
+// Remove password from returning to user on success
+type ReturnUser struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
+}
+
 // User lookup
 func (db *UserDB) UserLookup(userEmail string) (int, bool, error) {
 	db.mux.RLock()
@@ -32,10 +38,18 @@ func (db *UserDB) UserLookup(userEmail string) (int, bool, error) {
 	return id, true, nil
 }
 
-// Remove password from returning to user on success
-type ReturnUser struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+// User lookup
+func (db *UserDB) UserLookupByID(id int) (User, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	_, dbDat, err := loadDB(db)
+	if err != nil {
+		return User{}, err
+	}
+
+	user := dbDat.Users[id]
+	return user, nil
 }
 
 // CreateUser creates a new user and saves it to disk
@@ -113,6 +127,48 @@ func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) 
 	result := ReturnUser{
 		ID:    desiredUser.ID,
 		Email: desiredUser.Email,
+	}
+	return result, nil
+}
+
+func (db *UserDB) UpdateUser(userID int, email *string, password *string) (ReturnUser, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	user, err := db.UserLookupByID(userID)
+	if err != nil {
+		return ReturnUser{}, err
+	}
+
+	if email != nil {
+		user.Email = *email
+	}
+	if password != nil {
+		newPwHash, err := CreatePasswordHash(*password)
+		if err != nil {
+			return ReturnUser{}, errors.New("failed to create a password hash")
+		}
+		user.PasswordHash = &newPwHash
+	}
+
+	_, dbDat, err := loadDB(db)
+	if err != nil {
+		return ReturnUser{}, err
+	}
+
+	dbDat.Users[userID] = user
+	if email != nil {
+		dbDat.UserLookup[*email] = userID
+	}
+
+	err = writeToDB(db, dbDat)
+	if err != nil {
+		return ReturnUser{}, err
+	}
+
+	result := ReturnUser{
+		ID:    user.ID,
+		Email: user.Email,
 	}
 	return result, nil
 }

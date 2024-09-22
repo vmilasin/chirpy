@@ -12,9 +12,10 @@ type ApiConfig struct {
 	FileserverHits int
 	AppDatabase    *database.AppDatabase
 	AppLogs        *logger.AppLogs
+	JWTSecret      []byte
 }
 
-func NewApiConfig(dbFiles, logFiles map[string]string) *ApiConfig {
+func NewApiConfig(dbFiles, logFiles map[string]string, jwtSecret []byte) *ApiConfig {
 	// Initialize chirp DB
 	internalDB := database.NewDB(dbFiles)
 	internalLogs := logger.InitiateLogs(logFiles)
@@ -23,6 +24,7 @@ func NewApiConfig(dbFiles, logFiles map[string]string) *ApiConfig {
 		FileserverHits: 0,
 		AppDatabase:    internalDB,
 		AppLogs:        internalLogs,
+		JWTSecret:      jwtSecret,
 	}
 
 	loggerOutput := func() {

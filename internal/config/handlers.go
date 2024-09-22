@@ -2,19 +2,38 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/vmilasin/chirpy/internal/database"
 )
 
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+type loginRequest struct {
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds *int   `json:"expires_in_seconds,omitempty"`
+}
+
+type loginResponse struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
+	Token string `json:"token"`
+}
+
+type UpdateUserInfo struct {
+	Email    *string `json:"email"`
+	Password *string `json:"password"`
 }
 
 // Response helper functions
@@ -211,48 +230,50 @@ func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate email complexity
-		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-		re := regexp.MustCompile(emailPattern)
-		if !re.MatchString(user.Email) {
-			cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
-			return
-		}
+		/*
+			// Validate email complexity
+			emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+			re := regexp.MustCompile(emailPattern)
+			if !re.MatchString(user.Email) {
+				cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
+				return
+			}
 
-		// Validate password
-		// Check password length
-		if len(*user.Password) < 6 {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
-			return
-		}
+			// Validate password
+			// Check password length
+			if len(*user.Password) < 6 {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
+				return
+			}
 
-		// Check for at least one lowercase letter
-		hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
-		if !hasLowercase {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
-			return
-		}
+			// Check for at least one lowercase letter
+			hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
+			if !hasLowercase {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
+				return
+			}
 
-		// Check for at least one uppercase letter
-		hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
-		if !hasUppercase {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
-			return
-		}
+			// Check for at least one uppercase letter
+			hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
+			if !hasUppercase {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
+				return
+			}
 
-		// Check for at least one digit
-		hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
-		if !hasDigit {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
-			return
-		}
+			// Check for at least one digit
+			hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
+			if !hasDigit {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
+				return
+			}
 
-		// Check for at least one special character
-		hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(*user.Password)
-		if !hasSpecial {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
-			return
-		}
+			// Check for at least one special character
+			hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(*user.Password)
+			if !hasSpecial {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
+				return
+			}
+		*/
 
 		// Create user in database
 		newUser, err := cfg.AppDatabase.UserDB.CreateUser(user.Email, *user.Password)
@@ -283,14 +304,14 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Parse JSON
-		var user = database.User{}
-		if err := json.Unmarshal(body, &user); err != nil {
+		var loginReq loginRequest
+		if err := json.Unmarshal(body, &loginReq); err != nil {
 			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.")
 			return
 		}
 
 		// Check if the provided user exists in the DB
-		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(user.Email)
+		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(loginReq.Email)
 		if !exists {
 			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong e-mail address. Please type a valid one.")
 			return
@@ -305,15 +326,105 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Log in to the desired user
-		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(user.Email, *user.Password)
+		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(loginReq.Email, loginReq.Password)
 		if err != nil {
 			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong password.")
 			return
 		}
 
-		// Respond with JSON
-		cfg.respondWithJSON(w, http.StatusOK, currentUser)
+		var jwtExpiration int
+		if loginReq.ExpiresInSeconds != nil && *loginReq.ExpiresInSeconds > 0 && *loginReq.ExpiresInSeconds <= 24*60*60 {
+			jwtExpiration = *loginReq.ExpiresInSeconds
+		} else {
+			jwtExpiration = 24 * 60 * 60
+		}
+		now := time.Now().UTC()
+
+		// Create the Claims
+		claims := &jwt.RegisteredClaims{
+			Issuer:    "chirpy",
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(jwtExpiration) * time.Second)),
+			Subject:   strconv.Itoa(currentUser.ID),
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		signedString, err := token.SignedString(cfg.JWTSecret)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+
+		returnResponse := loginResponse{
+			ID:    currentUser.ID,
+			Email: currentUser.Email,
+			Token: signedString,
+		}
+
+		cfg.respondWithJSON(w, http.StatusOK, returnResponse)
 	} else {
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+	}
+}
+
+func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPut {
+		authHeader := r.Header.Get("Authorization")
+		var token string
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+			token = strings.TrimSpace(token)
+		} else {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid or missing Authorization header")
+		}
+
+		claims := &jwt.RegisteredClaims{}
+		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return cfg.JWTSecret, nil
+		})
+		if err != nil {
+			if err == jwt.ErrSignatureInvalid {
+				cfg.respondWithError(w, http.StatusUnauthorized, "Invalid token signature")
+				return
+			}
+			if strings.Contains(err.Error(), "expired") {
+				cfg.respondWithError(w, http.StatusUnauthorized, "Token has expired")
+				return
+			}
+			cfg.respondWithError(w, http.StatusUnauthorized, "Bad request")
+			return
+		}
+		if !parsedToken.Valid {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid token")
+			return
+		}
+		userID := claims.Subject
+		convertedUserID, err := strconv.Atoi(userID)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to convert user ID during JWT subject conversion.")
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid request body.")
+			return
+		}
+		var updateInfo UpdateUserInfo
+		if err := json.Unmarshal(body, &updateInfo); err != nil {
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.")
+			return
+		}
+
+		updatedUser, err := cfg.AppDatabase.UserDB.UpdateUser(convertedUserID, updateInfo.Email, updateInfo.Password)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user info update.")
+			return
+		}
+		cfg.respondWithJSON(w, http.StatusOK, updatedUser)
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be PUT
 	}
 }

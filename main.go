@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
 	"github.com/vmilasin/chirpy/internal/config"
 )
 
@@ -47,8 +48,13 @@ func main() {
 		dropFile(logFiles["userLog"])
 	}
 
+	// Load env variables
+	// Look for .env file in the current dir
+	godotenv.Load()
+	// Get the JWT secret and pass it to the API config
+	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	// Initialize API config
-	cfg := config.NewApiConfig(databaseFiles, logFiles)
+	cfg := config.NewApiConfig(databaseFiles, logFiles, jwtSecret)
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -66,6 +72,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", cfg.HandlerPostChirp)
 	mux.HandleFunc("POST /api/users", cfg.HandlerPostUser)
 	mux.HandleFunc("POST /api/login", cfg.HandlerLogin)
+	mux.HandleFunc("PUT /api/users", cfg.HandlerUpdateUser)
 
 	// Server parameters
 	server := &http.Server{
