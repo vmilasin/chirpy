@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/joho/godotenv"
 	"github.com/vmilasin/chirpy/internal/database"
 )
 
@@ -38,7 +39,13 @@ func InitMockApiConfig() *ApiConfig {
 	mockLogFiles["chirpLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "chirp_test.log")
 	mockLogFiles["userLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "user_test.log")
 
-	cfg := NewApiConfig(mockDatabaseFiles, mockLogFiles)
+	// Load env variables
+	// Look for .env file in the current dir
+	godotenv.Load()
+	// Get the JWT secret and pass it to the API config
+	jwtSecret := []byte(os.Getenv("TEST_JWT_SECRET"))
+
+	cfg := NewApiConfig(mockDatabaseFiles, mockLogFiles, jwtSecret)
 	return cfg
 }
 

@@ -45,7 +45,7 @@ func (db *UserDB) UserLookupByID(id int) (User, error) {
 
 	_, dbDat, err := loadDB(db)
 	if err != nil {
-		return User{}, err
+		return User{}, errors.New("user does not exist")
 	}
 
 	user := dbDat.Users[id]

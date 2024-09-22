@@ -124,7 +124,7 @@ func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
 				log.Printf("An error occured while fetching chirps: %s.", err)
 			}
 			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured while fetching chirps.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while fetching chirps: '%s'", err))
 			return
 		}
 
@@ -195,7 +195,7 @@ func (cfg *ApiConfig) HandlerPostChirp(w http.ResponseWriter, r *http.Request) {
 				log.Printf("An error occured during chirp creation: %s.", err)
 			}
 			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to create chirp.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create chirp: '%s'", err))
 			return
 		}
 
@@ -282,7 +282,7 @@ func (cfg *ApiConfig) HandlerPostUser(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Failed to create user %s: %s.", newUser.Email, err)
 			}
 			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to create user.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create user: '%s'", err))
 			return
 		}
 
@@ -321,7 +321,7 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Failed lookup during user login: %s.\n", err)
 			}
 			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user authentication.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured during user authentication: %s", err))
 			return
 		}
 
@@ -403,7 +403,7 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		userID := claims.Subject
 		convertedUserID, err := strconv.Atoi(userID)
 		if err != nil {
-			cfg.respondWithError(w, http.StatusInternalServerError, "Failed to convert user ID during JWT subject conversion.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to convert user ID during JWT subject conversion '%s'", err))
 			return
 		}
 
@@ -418,9 +418,54 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
+		/*
+			// Validate email complexity
+			emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+			re := regexp.MustCompile(emailPattern)
+			if !re.MatchString(user.Email) {
+				cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
+				return
+			}
+
+			// Validate password
+			// Check password length
+			if len(*user.Password) < 6 {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
+				return
+			}
+
+			// Check for at least one lowercase letter
+			hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
+			if !hasLowercase {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
+				return
+			}
+
+			// Check for at least one uppercase letter
+			hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
+			if !hasUppercase {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
+				return
+			}
+
+			// Check for at least one digit
+			hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
+			if !hasDigit {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
+				return
+			}
+
+			// Check for at least one special character
+			hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(*user.Password)
+			if !hasSpecial {
+				cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
+				return
+			}
+		*/
+
 		updatedUser, err := cfg.AppDatabase.UserDB.UpdateUser(convertedUserID, updateInfo.Email, updateInfo.Password)
 		if err != nil {
-			cfg.respondWithError(w, http.StatusInternalServerError, "An error occured during user info update.")
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured during user info update '%s'", err))
 			return
 		}
 		cfg.respondWithJSON(w, http.StatusOK, updatedUser)

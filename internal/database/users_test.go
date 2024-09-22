@@ -47,7 +47,7 @@ func TestCreateUser(t *testing.T) {
 	}
 }
 
-func TestUserLookup(t *testing.T) {
+func TestUserLookupSuccess(t *testing.T) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -69,15 +69,81 @@ func TestUserLookup(t *testing.T) {
 		t.Errorf("The returned user's ID was expected to be: '%d', got: '%d'", 1, userLookupID)
 	}
 
-	email = "heisenberg@betternotcall.com"
+	errList := TeardownMockDB()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUserLookupFailure(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	modckDB := InitMockDB()
+
+	email := "heisenberg@betternotcall.com"
 	expectedError := errors.New("user does not exist")
-	userLookupID, userLookupExists, err = modckDB.UserDB.UserLookup(email)
+	userLookupID, userLookupExists, err := modckDB.UserDB.UserLookup(email)
 	if err != nil && err.Error() != expectedError.Error() {
 		t.Errorf("There was an error during lookup of email: '%s'\nERROR: %s", email, err)
 	} else if userLookupExists {
 		t.Errorf("The user %s should not have been returned, but was", email)
 	} else if userLookupID != 0 {
 		t.Errorf("The returned user's ID was expected to be: '%d', got: '%d'", 0, userLookupID)
+	}
+
+	errList := TeardownMockDB()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUserLookupByIDSuccess(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	modckDB := InitMockDB()
+
+	email := "saul@bettercall.com"
+	password := "Xxx.123.17!"
+	_, err := modckDB.UserDB.CreateUser(email, password)
+	if err != nil {
+		t.Errorf("Failed to create a new user: '%s'\nERROR: %s", email, err)
+	}
+
+	user, err := modckDB.UserDB.UserLookupByID(1)
+	if err != nil {
+		t.Errorf("There was an error during lookup of email: '%s'\nERROR: %s", email, err)
+	} else if user.ID != 1 || user.Email != email {
+		t.Errorf("Wrong return values, expected ID: '%d' and email: '%s', got: '%d', '%s'", 1, email, user.ID, user.Email)
+	}
+
+	errList := TeardownMockDB()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUserLookupByIDFailure(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	modckDB := InitMockDB()
+
+	email := "heisenberg@betternotcall.com"
+	expectedError := errors.New("user does not exist")
+	_, err := modckDB.UserDB.UserLookupByID(1)
+	if err != nil && err.Error() != expectedError.Error() {
+		t.Errorf("There was an error during lookup of email: '%s'\nERROR: %s", email, err)
 	}
 
 	errList := TeardownMockDB()
