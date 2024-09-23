@@ -333,7 +333,7 @@ func (cfg *ApiConfig) HandlerLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var jwtExpiration int
-		if loginReq.ExpiresInSeconds != nil && *loginReq.ExpiresInSeconds > 0 && *loginReq.ExpiresInSeconds <= 24*60*60 {
+		if loginReq.ExpiresInSeconds != nil && *loginReq.ExpiresInSeconds <= 24*60*60 {
 			jwtExpiration = *loginReq.ExpiresInSeconds
 		} else {
 			jwtExpiration = 24 * 60 * 60
@@ -375,10 +375,11 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 			token = strings.TrimSpace(token)
 		} else {
 			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid or missing Authorization header")
+			return
 		}
 
 		claims := &jwt.RegisteredClaims{}
-		parsedToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -393,13 +394,13 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 				cfg.respondWithError(w, http.StatusUnauthorized, "Token has expired")
 				return
 			}
-			cfg.respondWithError(w, http.StatusUnauthorized, "Bad request")
-			return
-		}
-		if !parsedToken.Valid {
 			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid token")
 			return
 		}
+		/*if !parsedToken.Valid {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid token")
+			return
+		}*/
 		userID := claims.Subject
 		convertedUserID, err := strconv.Atoi(userID)
 		if err != nil {

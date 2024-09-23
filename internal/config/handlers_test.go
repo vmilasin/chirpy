@@ -895,9 +895,6 @@ func TestUpdateUserSuccess(t *testing.T) {
 
 	// Update user info
 	updateInfoBody := `{"email":"sidious@darth.com", "password":"UnL1m1T3d POOOOOOOOOOWEEEEEEEEEERRRRRRRR11!1!!!!!!11"}`
-	if err != nil {
-		t.Errorf("An error occured while composing update info: '%s'", err)
-	}
 
 	req, err = http.NewRequest("PUT", "/api/users", strings.NewReader(updateInfoBody))
 	if err != nil {
@@ -960,6 +957,260 @@ func TestUpdateUserSuccess(t *testing.T) {
 	loadedID, exists, err = mockApiConfig.AppDatabase.UserDB.UserLookup(loginUserNew.Email)
 	if err != nil || loginUserNew.ID != loadedID || !exists {
 		t.Errorf("User was not correctly logged in: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", loginUserNew.Email, loginUserNew.ID, "sidious@darth.com", 1)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUpdateUserAuthHeaderMissing(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Initiate DB & create user
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	// Log into the user
+	userBody := `{"email":"vader@darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusOK)
+	}
+
+	var loginUser loginResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &loginUser)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	if loginUser.Email != "vader@darth.com" {
+		t.Errorf("handler returned user email: got '%v' want '%v'", loginUser.Email, "vader@darth.com")
+	}
+
+	if loginUser.Token == "" {
+		t.Errorf("An empty token was returned. Token: %s", loginUser.Token)
+	}
+
+	loadedID, exists, err := mockApiConfig.AppDatabase.UserDB.UserLookup(loginUser.Email)
+	if err != nil || loginUser.ID != loadedID || !exists {
+		t.Errorf("User was not correctly logged in: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", loginUser.Email, loginUser.ID, "vader@darth.com", 1)
+	}
+
+	// Update user info
+	updateInfoBody := `{"email":"sidious@darth.com", "password":"UnL1m1T3d POOOOOOOOOOWEEEEEEEEEERRRRRRRR11!1!!!!!!11"}`
+
+	req, err = http.NewRequest("PUT", "/api/users", strings.NewReader(updateInfoBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr = httptest.NewRecorder()
+
+	handler = http.HandlerFunc(mockApiConfig.HandlerUpdateUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusUnauthorized)
+	}
+
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Invalid or missing Authorization header"
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUpdateUserBadToken(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Initiate DB & create user
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	// Log into the user
+	userBody := `{"email":"vader@darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!"}`
+
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusOK)
+	}
+
+	var loginUser loginResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &loginUser)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	if loginUser.Email != "vader@darth.com" {
+		t.Errorf("handler returned user email: got '%v' want '%v'", loginUser.Email, "vader@darth.com")
+	}
+
+	if loginUser.Token == "" {
+		t.Errorf("An empty token was returned. Token: %s", loginUser.Token)
+	}
+
+	loadedID, exists, err := mockApiConfig.AppDatabase.UserDB.UserLookup(loginUser.Email)
+	if err != nil || loginUser.ID != loadedID || !exists {
+		t.Errorf("User was not correctly logged in: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", loginUser.Email, loginUser.ID, "vader@darth.com", 1)
+	}
+
+	// Update user info
+	updateInfoBody := `{"email":"sidious@darth.com", "password":"UnL1m1T3d POOOOOOOOOOWEEEEEEEEEERRRRRRRR11!1!!!!!!11"}`
+	if err != nil {
+		t.Errorf("An error occured while composing update info: '%s'", err)
+	}
+
+	req, err = http.NewRequest("PUT", "/api/users", strings.NewReader(updateInfoBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", "BADTOKEN"))
+
+	rr = httptest.NewRecorder()
+
+	handler = http.HandlerFunc(mockApiConfig.HandlerUpdateUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusUnauthorized)
+	}
+
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Invalid token"
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
+	}
+
+	errList := TeardownMockApiConfig()
+	if len(errList) != 0 {
+		for _, err := range errList {
+			t.Error(err)
+		}
+		t.Fatal("Full teardown unsuccessful")
+	}
+}
+
+func TestUpdateUserExpiredToken(t *testing.T) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Initiate DB & create user
+	mockApiConfig := InitMockApiConfig()
+	mockApiConfig.AppDatabase.UserDB.CreateUser("vader@darth.com", "c0m3 t0 th3 D4RK S1D3, we have cookies!")
+
+	// Log into the user
+	userBody := `{"email":"vader@darth.com", "password":"c0m3 t0 th3 D4RK S1D3, we have cookies!", "expires_in_seconds": -1}`
+
+	req, err := http.NewRequest("POST", "/api/login", strings.NewReader(userBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(mockApiConfig.HandlerLogin)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusOK)
+	}
+
+	var loginUser loginResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &loginUser)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	if loginUser.Email != "vader@darth.com" {
+		t.Errorf("handler returned user email: got '%v' want '%v'", loginUser.Email, "vader@darth.com")
+	}
+
+	if loginUser.Token == "" {
+		t.Errorf("An empty token was returned. Token: %s", loginUser.Token)
+	}
+
+	loadedID, exists, err := mockApiConfig.AppDatabase.UserDB.UserLookup(loginUser.Email)
+	if err != nil || loginUser.ID != loadedID || !exists {
+		t.Errorf("User was not correctly logged in: got email: '%v', ID: '%d', want email: '%v', ID: '%d'", loginUser.Email, loginUser.ID, "vader@darth.com", 1)
+	}
+
+	// Update user info
+	updateInfoBody := `{"email":"sidious@darth.com", "password":"UnL1m1T3d POOOOOOOOOOWEEEEEEEEEERRRRRRRR11!1!!!!!!11"}`
+
+	req, err = http.NewRequest("PUT", "/api/users", strings.NewReader(updateInfoBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", loginUser.Token))
+
+	rr = httptest.NewRecorder()
+
+	handler = http.HandlerFunc(mockApiConfig.HandlerUpdateUser)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got '%v' want '%v'", status, http.StatusUnauthorized)
+	}
+
+	var returnError errorResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &returnError)
+	if err != nil {
+		t.Fatalf("Could not parse response body: %v", err)
+	}
+
+	expectedError := "Token has expired"
+	if returnError.Error != expectedError {
+		t.Errorf("handler returned wrong error: got '%v' want '%v'", returnError.Error, expectedError)
 	}
 
 	errList := TeardownMockApiConfig()
