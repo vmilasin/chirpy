@@ -1,16 +1,25 @@
 package database
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	ID           int     `json:"id"`
-	Email        string  `json:"email"`
-	Password     *string `json:"password,omitempty"`
-	PasswordHash *[]byte `json:"passwordHash"`
+	ID                     int       `json:"id"`
+	Email                  string    `json:"email"`
+	Password               *string   `json:"password,omitempty"`
+	PasswordHash           *[]byte   `json:"passwordHash"`
+	RefreshToken           string    `json:"refresh_token,omitempty"`
+	RefreshTokenExpiration time.Time `json:"refresh_token_expiration,omitempty"`
 }
 
 // Remove password from returning to user on success
@@ -131,6 +140,93 @@ func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) 
 	return result, nil
 }
 
+func (db *UserDB) AddAccessTokenToUser(jwtExpiration, userID int, JWTSecret []byte) (string, error) {
+	now := time.Now().UTC()
+
+	claims := &jwt.RegisteredClaims{
+		Issuer:    "chirpy",
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(jwtExpiration) * time.Second)),
+		Subject:   strconv.Itoa(userID),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedString, err := token.SignedString(JWTSecret)
+	if err != nil {
+		return "", err
+	}
+
+	return signedString, nil
+}
+
+// Add a new refresh token to user (on login)
+func (db *UserDB) AddRefreshTokenToUser(userID int) (string, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	// Get user by ID
+	user, err := db.UserLookupByID(userID)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a refresh token string
+	randBytes := make([]byte, 32)
+	_, err = rand.Read(randBytes)
+	if err != nil {
+		return "", err
+	}
+	hexString := hex.EncodeToString(randBytes)
+
+	// Define token expiration timestamp
+	now := time.Now().UTC()
+	expirationTimestamp := now.Add(time.Duration(60*24) * time.Hour)
+
+	user.RefreshToken = hexString
+	user.RefreshTokenExpiration = expirationTimestamp
+
+	// Load the DB && write to it
+	_, dbDat, err := loadDB(db)
+	if err != nil {
+		return "", err
+	}
+	dbDat.Users[user.ID] = user
+
+	return hexString, nil
+}
+
+// Authorization request using an access token
+func (db *UserDB) AccessTokenAuthorization(header string, JWTSecret []byte) (int, error) {
+	var token string
+	if strings.HasPrefix(header, "Bearer ") {
+		token = strings.TrimPrefix(header, "Bearer ")
+		token = strings.TrimSpace(token)
+	} else {
+		err := errors.New("invalid or missing Authorization header")
+		return 0, err
+	}
+
+	claims := &jwt.RegisteredClaims{}
+	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return JWTSecret, nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	userID := claims.Subject
+	convertedUserID, err := strconv.Atoi(userID)
+	if err != nil {
+		return 0, errors.New("failed to convert userID from subject to int")
+	}
+
+	return convertedUserID, nil
+}
+
+// Update user info
 func (db *UserDB) UpdateUser(userID int, email *string, password *string) (ReturnUser, error) {
 	db.mux.RLock()
 	defer db.mux.RUnlock()

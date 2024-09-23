@@ -72,6 +72,8 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", cfg.HandlerPostChirp)
 	mux.HandleFunc("POST /api/users", cfg.HandlerPostUser)
 	mux.HandleFunc("POST /api/login", cfg.HandlerLogin)
+	//mux.HandleFunc("POST /api/refresh", cfg.HandlerRefreshToken)
+	//mux.HandleFunc("POST /api/revoke", cfg.HandlerRevokeToken)
 	mux.HandleFunc("PUT /api/users", cfg.HandlerUpdateUser)
 
 	// Server parameters
