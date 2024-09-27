@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/vmilasin/chirpy/internal/config"
+	"github.com/vmilasin/chirpy/internal/database"
 )
 
 func main() {
@@ -20,10 +22,6 @@ func main() {
 	// Configure fileserver root path and port to serve the site on
 	const filepathRoot = "."
 	const port = "8080"
-	// Database file paths
-	databaseFiles := make(map[string]string, 2)
-	databaseFiles["chirpDBFileName"] = "chirp_database.json"
-	databaseFiles["userDBFileName"] = "user_database.json"
 	// Log file paths
 	logFiles := make((map[string]string), 5)
 	logFiles["systemLog"] = filepath.Join(baseDir, "logs", "system.log")
@@ -36,11 +34,8 @@ func main() {
 	// WARNING: THIS DROPS THE DATABASE FILE!!!
 	dbg := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
-
 	if *dbg {
 		log.Print("DEBUG MODE INITIATED")
-		dropFile(databaseFiles["chirpDBFileName"])
-		dropFile(databaseFiles["userDBFileName"])
 		dropFile(logFiles["systemLog"])
 		dropFile(logFiles["handlerLog"])
 		dropFile(logFiles["databaseLog"])
@@ -51,10 +46,19 @@ func main() {
 	// Load env variables
 	// Look for .env file in the current dir
 	godotenv.Load()
-	// Get the JWT secret and pass it to the API config
+	// Get the database connection URL
+	dbURL := os.Getenv("DB_URL")
+	// Open a connection to the DB
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Unable to open connection to the database: %v", err)
+	}
+	// Create an instance of Queries with the open db connection
+	queries := database.New(db)
+	// Get the JWT secret
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	// Initialize API config
-	cfg := config.NewApiConfig(databaseFiles, logFiles, jwtSecret)
+	cfg := config.NewApiConfig(db, queries, logFiles, jwtSecret)
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -63,15 +67,19 @@ func main() {
 	fileserver := http.FileServer(http.Dir(filepathRoot))
 
 	/* HANDLER REGISTRATION: */
+	//http.Handle("/user", authMiddleware(http.HandlerFunc(userHandler)))
 	mux.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", fileserver)))
 	mux.HandleFunc("GET /api/healthz", cfg.HandlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.HandlerMetricsReset)
+
 	mux.HandleFunc("GET /api/chirps", cfg.HandlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{id}", cfg.HandlerGetChirp)
+
+	mux.HandleFunc("POST /api/users", cfg.HandlerUserRegistration)
+	mux.HandleFunc("POST /api/login", cfg.HandlerUserLogin)
+
 	mux.HandleFunc("POST /api/chirps", cfg.HandlerPostChirp)
-	mux.HandleFunc("POST /api/users", cfg.HandlerPostUser)
-	mux.HandleFunc("POST /api/login", cfg.HandlerLogin)
 	//mux.HandleFunc("POST /api/refresh", cfg.HandlerRefreshToken)
 	//mux.HandleFunc("POST /api/revoke", cfg.HandlerRevokeToken)
 	mux.HandleFunc("PUT /api/users", cfg.HandlerUpdateUser)

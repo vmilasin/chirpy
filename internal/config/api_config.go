@@ -1,8 +1,9 @@
 package config
 
 import (
+	"context"
+	"database/sql"
 	"log"
-	"net/http"
 
 	"github.com/vmilasin/chirpy/internal/database"
 	"github.com/vmilasin/chirpy/internal/logger"
@@ -10,29 +11,26 @@ import (
 
 type ApiConfig struct {
 	FileserverHits int
-	AppDatabase    *database.AppDatabase
+	DB             *sql.DB
+	Queries        *database.Queries
 	AppLogs        *logger.AppLogs
 	JWTSecret      []byte
 }
 
-func NewApiConfig(dbFiles, logFiles map[string]string, jwtSecret []byte) *ApiConfig {
-	// Initialize chirp DB
-	internalDB := database.NewDB(dbFiles)
+func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]string, jwtSecret []byte) *ApiConfig {
 	internalLogs := logger.InitiateLogs(logFiles)
 
 	cfg := &ApiConfig{
 		FileserverHits: 0,
-		AppDatabase:    internalDB,
+		DB:             db,
+		Queries:        queries,
 		AppLogs:        internalLogs,
 		JWTSecret:      jwtSecret,
 	}
 
 	loggerOutput := func() {
 		output := `(
-		Database files initialized {
-			chirp database: %s
-			user database: %s
-		}
+		Postgresql DB initialized,
 		Log files initialized {
 			system logs: %s
 			database logs: %s 
@@ -42,8 +40,6 @@ func NewApiConfig(dbFiles, logFiles map[string]string, jwtSecret []byte) *ApiCon
 		)`
 		log.Printf(
 			output,
-			cfg.AppDatabase.ChirpDB.Path(),
-			cfg.AppDatabase.UserDB.Path(),
 			cfg.AppLogs.SystemLog,
 			cfg.AppLogs.DatabaseLog,
 			cfg.AppLogs.ChirpLog,
@@ -58,10 +54,27 @@ func NewApiConfig(dbFiles, logFiles map[string]string, jwtSecret []byte) *ApiCon
 	return cfg
 }
 
-/* MIDDLEWARE: */
-func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.FileserverHits += 1
-		next.ServeHTTP(w, r)
-	})
+func (cfg *ApiConfig) TransactionalQuery(ctx context.Context, txFunc func(tx *database.Queries) error) error {
+	// Create a new transaction
+	tx, err := cfg.DB.Begin()
+	if err != nil {
+		return err
+	}
+
+	// Create a new Qeuries instance with the transaction
+	txQueries := cfg.Queries.WithTx(tx)
+
+	// Ensure the transaction is rolled back if there’s an error
+	defer func() {
+		if err != nil {
+			tx.Rollback() // Roll back if there was an error
+		}
+	}()
+
+	// Execute the transaction function
+	if err := txFunc(txQueries); err != nil {
+		return err // Return the error to trigger the rollback
+	}
+
+	return tx.Commit()
 }

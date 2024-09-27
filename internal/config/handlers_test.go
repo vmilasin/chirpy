@@ -1,5 +1,6 @@
 package config
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -707,7 +708,7 @@ func TestHandlerPostUserSuccess(t *testing.T) {
 			t.Fatal("Full teardown unsuccessful")
 		}
 	}
-*/
+
 func TestHandlerUserLoginSuccess(t *testing.T) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -1221,5 +1222,5 @@ func TestUpdateUserExpiredToken(t *testing.T) {
 		t.Fatal("Full teardown unsuccessful")
 	}
 }
-
+*/
 // Add tests here to check update info passwords

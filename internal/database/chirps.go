@@ -1,10 +1,6 @@
 package database
 
-import (
-	"errors"
-)
-
-type Chirp struct {
+/*type Chirp struct {
 	ID   int    `json:"id"`
 	Body string `json:"body"`
 }
@@ -72,3 +68,4 @@ func (db *ChirpDB) CreateChirp(body string) (Chirp, error) {
 
 	return newChirp, nil
 }
+*/

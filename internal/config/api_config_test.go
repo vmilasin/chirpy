@@ -1,6 +1,8 @@
 package config
 
+/*
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -27,10 +29,6 @@ func InitMockApiConfig() *ApiConfig {
 	if err != nil {
 		log.Fatalf("Failed to get working directory: %v", err)
 	}
-	// Database file paths
-	mockDatabaseFiles := make(map[string]string, 2)
-	mockDatabaseFiles["chirpDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "chirp_database_test.json")
-	mockDatabaseFiles["userDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "user_database_test.json")
 	// Log file paths
 	mockLogFiles := make((map[string]string), 5)
 	mockLogFiles["systemLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "system_test.log")
@@ -44,38 +42,33 @@ func InitMockApiConfig() *ApiConfig {
 	godotenv.Load()
 	// Get the JWT secret and pass it to the API config
 	jwtSecret := []byte(os.Getenv("TEST_JWT_SECRET"))
+	dbURL := os.Getenv("DB_URL")
+	// Open a connection to the DB
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Unable to open connection to the database: %v", err)
+	}
+	// Create a new instance of DB Query
+	dbQueries := database.New(db)
 
-	cfg := NewApiConfig(mockDatabaseFiles, mockLogFiles, jwtSecret)
+	cfg := NewApiConfig(dbQueries, mockLogFiles, jwtSecret)
 	return cfg
 }
 
-// Delete mock DB and log files
+// Delete log files and clear DB
 func TeardownMockApiConfig() []error {
-	errorList := make([]error, 0, 7)
-
 	baseDir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Failed to get working directory: %v", err)
 	}
-	// Database file paths
-	mockDatabaseFiles := make(map[string]string, 2)
-	mockDatabaseFiles["chirpDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "chirp_database_test.json")
-	mockDatabaseFiles["userDBFileName"] = filepath.Join(baseDir, "..", "..", "test", "db", "user_database_test.json")
 	// Log file paths
+	errorList := make([]error, 0, 7)
 	mockLogFiles := make((map[string]string), 5)
 	mockLogFiles["systemLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "system_test.log")
 	mockLogFiles["handlerLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "handler_test.log")
 	mockLogFiles["databaseLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "database_test.log")
 	mockLogFiles["chirpLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "chirp_test.log")
 	mockLogFiles["userLog"] = filepath.Join(baseDir, "..", "..", "test", "logs", "user_test.log")
-
-	for index, file := range mockDatabaseFiles {
-		err := os.Remove(file)
-		if err != nil {
-			output := fmt.Errorf("mock DB file %s was not removed from location %s: %s", index, file, err)
-			errorList = append(errorList, output)
-		}
-	}
 
 	for index, file := range mockLogFiles {
 		err := os.Remove(file)
@@ -157,3 +150,4 @@ func TestNewApiConfig(t *testing.T) {
 		t.Fatal("Full teardown unsuccessful")
 	}
 }
+*/

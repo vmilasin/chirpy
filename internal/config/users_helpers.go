@@ -1,19 +1,22 @@
-package database
+package config
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type User struct {
+/*type User struct {
 	ID                     int       `json:"id"`
 	Email                  string    `json:"email"`
 	Password               *string   `json:"password,omitempty"`
@@ -26,79 +29,68 @@ type User struct {
 type ReturnUser struct {
 	ID    int    `json:"id"`
 	Email string `json:"email"`
+}*/
+
+// Email validation for registration & update
+func (cfg *ApiConfig) EmailValidation(email string, w http.ResponseWriter, r *http.Request) {
+	// Validate if email already exists in the DB
+	id, err := cfg.Queries.GetUserByEmail(r.Context(), email)
+	if err != nil {
+		cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured when trying to lookup email address in the database: %s", err))
+		return
+	}
+	if id != uuid.Nil {
+		cfg.respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.")
+		return
+	}
+
+	// Validate email complexity
+	emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	re := regexp.MustCompile(emailPattern)
+	if !re.MatchString(email) {
+		cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
+		return
+	}
 }
 
-// User lookup
-func (db *UserDB) UserLookup(userEmail string) (int, bool, error) {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	_, dbDat, err := loadDB(db)
-	if err != nil {
-		return 0, true, err
+// Password validation for registration & update
+func (cfg *ApiConfig) PasswordValidation(password string, w http.ResponseWriter, r *http.Request) {
+	// Check password length
+	if len(password) < 6 {
+		cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
+		return
 	}
 
-	id, exists := dbDat.UserLookup[userEmail]
-
-	if !exists {
-		return 0, false, errors.New("user does not exist")
+	// Check for at least one lowercase letter
+	hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(password)
+	if !hasLowercase {
+		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
+		return
 	}
 
-	return id, true, nil
+	// Check for at least one uppercase letter
+	hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	if !hasUppercase {
+		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
+		return
+	}
+
+	// Check for at least one digit
+	hasDigit := regexp.MustCompile(`\d`).MatchString(password)
+	if !hasDigit {
+		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
+		return
+	}
+
+	// Check for at least one special character
+	hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(password)
+	if !hasSpecial {
+		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
+		return
+	}
 }
 
-// User lookup
-func (db *UserDB) UserLookupByID(id int) (User, error) {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	_, dbDat, err := loadDB(db)
-	if err != nil {
-		return User{}, errors.New("user does not exist")
-	}
-
-	user := dbDat.Users[id]
-	return user, nil
-}
-
-// CreateUser creates a new user and saves it to disk
-func (db *UserDB) CreateUser(userEmail, userPassword string) (ReturnUser, error) {
-	db.mux.Lock()
-	defer db.mux.Unlock()
-
-	_, dbDat, err := loadDB(db)
-	if err != nil {
-		return ReturnUser{}, err
-	}
-
-	dbDat.NextUserID += 1
-	newPwHash, err := CreatePasswordHash(userPassword)
-	if err != nil {
-		return ReturnUser{}, errors.New("failed to create a password hash")
-	}
-
-	newUser := User{
-		ID:           dbDat.NextUserID,
-		Email:        userEmail,
-		PasswordHash: &newPwHash,
-	}
-
-	dbDat.Users[dbDat.NextUserID] = newUser
-	dbDat.UserLookup[newUser.Email] = newUser.ID
-	err = writeToDB(db, dbDat)
-	if err != nil {
-		return ReturnUser{}, err
-	}
-
-	result := ReturnUser{
-		ID:    newUser.ID,
-		Email: newUser.Email,
-	}
-
-	return result, nil
-}
-
-// Create password hash
+// Create password hash for new users on sign-up
 func CreatePasswordHash(password string) ([]byte, error) {
 	pw := []byte(password)
 
@@ -111,8 +103,8 @@ func CreatePasswordHash(password string) ([]byte, error) {
 }
 
 // User login
-func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) {
-	db.mux.RLock()
+func (cfg *ApiConfig) LoginUser(password string, w http.ResponseWriter, r *http.Request) (ReturnUser, error) {
+	/*db.mux.RLock()
 	defer db.mux.RUnlock()
 
 	userID, _, err := db.UserLookup(userEmail)
@@ -127,7 +119,8 @@ func (db *UserDB) LoginUser(userEmail, userPassword string) (ReturnUser, error) 
 
 	desiredUser := dbDat.Users[userID]
 	hashedPW := desiredUser.PasswordHash
-	providedPW := []byte(userPassword)
+	providedPW := []byte(userPassword)*/
+	user := d
 
 	if err := bcrypt.CompareHashAndPassword(*hashedPW, providedPW); err != nil {
 		return ReturnUser{}, errors.New("incorrect password")
