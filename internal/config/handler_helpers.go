@@ -54,6 +54,10 @@ func (cfg *ApiConfig) resolveAuthTokenError(w http.ResponseWriter, err error) {
 		return
 	}
 	if err.Error() == "failed to convert userID from subject to int" {
+		output := func() {
+			log.Printf("Failed to convert userID from subject to int")
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
 		cfg.respondWithError(w, http.StatusInternalServerError, "Failed to convert userID from subject to int")
 		return
 	}

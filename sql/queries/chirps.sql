@@ -11,8 +11,3 @@ FROM chirps;
 SELECT *
 FROM chirps
 WHERE id = $1;
-
--- name: GetChirpFromUser :one
-SELECT *
-FROM chirps
-WHERE user_id = $1;

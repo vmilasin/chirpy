@@ -79,10 +79,10 @@ func main() {
 	mux.HandleFunc("POST /api/users", cfg.HandlerUserRegistration)
 	mux.HandleFunc("POST /api/login", cfg.HandlerUserLogin)
 
-	mux.HandleFunc("POST /api/chirps", cfg.HandlerChirpsCreate)
+	mux.Handle("POST /api/chirps", cfg.AuthMiddleware(http.HandlerFunc(cfg.HandlerChirpsCreate)))
 	//mux.HandleFunc("POST /api/refresh", cfg.HandlerRefreshToken)
 	//mux.HandleFunc("POST /api/revoke", cfg.HandlerRevokeToken)
-	mux.HandleFunc("PUT /api/users", cfg.HandlerUserUpdate)
+	mux.Handle("PUT /api/users", cfg.AuthMiddleware(http.HandlerFunc(cfg.HandlerUserUpdate)))
 
 	// Server parameters
 	server := &http.Server{

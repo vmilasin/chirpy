@@ -25,6 +25,7 @@ func CreatePasswordHash(password string) ([]byte, error) {
 	return newHash, nil
 }
 
+// Create a new access token for a user
 func CreateAccessToken(userID uuid.UUID, JWTSecret []byte) (string, error) {
 	now := time.Now().UTC()
 	jwtExpiration := 1 * 60 * 60
@@ -43,24 +44,6 @@ func CreateAccessToken(userID uuid.UUID, JWTSecret []byte) (string, error) {
 	}
 
 	return signedString, nil
-}
-
-// Add a new refresh token to user (on login)
-func CreateRefreshToken() (string, time.Time, error) {
-
-	// Create a refresh token string
-	randBytes := make([]byte, 32)
-	_, err := rand.Read(randBytes)
-	if err != nil {
-		return "", time.Now(), err
-	}
-	hexString := hex.EncodeToString(randBytes)
-
-	// Define token expiration timestamp
-	now := time.Now().UTC()
-	expirationTimestamp := now.Add(time.Duration(60*24) * time.Hour)
-
-	return hexString, expirationTimestamp, nil
 }
 
 // Authorization request using an access token
@@ -92,4 +75,22 @@ func AccessTokenAuthorization(header string, JWTSecret []byte) (uuid.UUID, error
 	}
 
 	return convertedUserID, nil
+}
+
+// Create a new refresh token for a user
+func CreateRefreshToken() (string, time.Time, error) {
+
+	// Create a refresh token string
+	randBytes := make([]byte, 32)
+	_, err := rand.Read(randBytes)
+	if err != nil {
+		return "", time.Now(), err
+	}
+	hexString := hex.EncodeToString(randBytes)
+
+	// Define token expiration timestamp
+	now := time.Now().UTC()
+	expirationTimestamp := now.Add(time.Duration(60*24) * time.Hour)
+
+	return hexString, expirationTimestamp, nil
 }

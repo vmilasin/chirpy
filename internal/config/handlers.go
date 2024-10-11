@@ -1,8 +1,6 @@
 package config
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -109,7 +107,6 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		if err != nil {
 			cfg.respondWithError(w, httpStatus, err.Error())
 		}
-
 		httpStatus, err = cfg.PasswordValidation(newUserInput.Password)
 		if err != nil {
 			cfg.respondWithError(w, httpStatus, err.Error())
@@ -119,7 +116,7 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		newPwHash, err := auth.CreatePasswordHash(newUserInput.Password)
 		if err != nil {
 			output := func() {
-				log.Printf("Failed to password hash for new user '%s': %s.", newUserInput.Email, err)
+				log.Printf("Failed to create password hash for new user '%s': %s.", newUserInput.Email, err)
 			}
 			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
 			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to password hash for new user '%s': %s.", newUserInput.Email, err))
@@ -209,14 +206,6 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Add user auth info to context
-		ctx := r.Context()
-		ctx = context.WithValue(r.Context(), "userID", loginUser.ID)
-		ctx = context.WithValue(r.Context(), "accessToken", accessTokenString)
-		ctx = context.WithValue(r.Context(), "refreshToken", refreshTokenString)
-
-		r = r.WithContext(ctx)
-
 		returnResponse := loginResponse{
 			ID:           loginUser.ID,
 			Email:        loginUser.Email,
@@ -230,14 +219,15 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
 func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPut {
-		//Get the authorization header and pass it to the access token auth function it should return the user's ID if successful
-		authHeader := r.Header.Get("Authorization")
-		userID, err := cfg.AppDatabase.UserDB.AccessTokenAuthorization(authHeader, cfg.JWTSecret)
+		userID, err := uuid.Parse(r.Context().Value("userID").(string))
 		if err != nil {
-			cfg.resolveAuthTokenError(w, err)
+			output := func() {
+				log.Printf("An error occured while reading userID from context: %s.", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while reading userID from context: %s.", err))
 			return
 		}
 
@@ -252,52 +242,39 @@ func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		/*  ADD PASSWORD VALIDATION FOR THE NEW PW
-		// Validate email complexity
-		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-		re := regexp.MustCompile(emailPattern)
-		if !re.MatchString(user.Email) {
-			cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
-			return
+		if updateInfo.Email != nil {
+			// Validate email
+			httpStatus, err := cfg.EmailValidation(r.Context(), *updateInfo.Email)
+			if err != nil {
+				cfg.respondWithError(w, httpStatus, err.Error())
+			}
 		}
 
-		// Validate password
-		// Check password length
-		if len(*user.Password) < 6 {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
-			return
+		var newPwHash []byte
+		if updateInfo.Password != nil {
+			// Validate password
+			httpStatus, err := cfg.PasswordValidation(*updateInfo.Password)
+			if err != nil {
+				cfg.respondWithError(w, httpStatus, err.Error())
+			}
+			// Create a new PW hash
+			newPwHash, err = auth.CreatePasswordHash(*updateInfo.Password)
+			if err != nil {
+				output := func() {
+					log.Printf("Failed to create password hash for existing user '%s': %s.", userID, err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create password hash for existing user '%s': %s.", userID, err))
+				return
+			}
 		}
 
-		// Check for at least one lowercase letter
-		hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(*user.Password)
-		if !hasLowercase {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
-			return
+		newParameters := database.UpdateUserParams{
+			Column1: updateInfo.Email,
+			Column2: newPwHash,
+			ID:      userID,
 		}
-
-		// Check for at least one uppercase letter
-		hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(*user.Password)
-		if !hasUppercase {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
-			return
-		}
-
-		// Check for at least one digit
-		hasDigit := regexp.MustCompile(`\d`).MatchString(*user.Password)
-		if !hasDigit {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
-			return
-		}
-
-		// Check for at least one special character
-		hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(*user.Password)
-		if !hasSpecial {
-			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
-			return
-		}
-
-
-		updatedUser, err := cfg.AppDatabase.UserDB.UpdateUser(userID, updateInfo.Email, updateInfo.Password)
+		updatedUser, err := cfg.Queries.UpdateUser(r.Context(), newParameters)
 		if err != nil {
 			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured during user info update '%s'", err))
 			return
@@ -307,7 +284,6 @@ func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) 
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be PUT
 	}
 }
-*/
 
 // GET all chirps
 func (cfg *ApiConfig) HandlerChirpsGetAll(w http.ResponseWriter, r *http.Request) {
@@ -363,30 +339,14 @@ func (cfg *ApiConfig) HandlerChirpsGetByID(w http.ResponseWriter, r *http.Reques
 // POST a chirp
 func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		// Check the access token
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			cfg.respondWithError(w, http.StatusBadRequest, "Missing Authorization header.")
-			return
-		}
-
-		userID, err := auth.AccessTokenAuthorization(authHeader, cfg.JWTSecret)
+		userID, err := uuid.Parse(r.Context().Value("userID").(string))
 		if err != nil {
-			refreshToken, err := cfg.Queries.GetRefreshTokenForUser(r.Context(), userID)
-			if err == sql.ErrNoRows {
-				cfg.respondWithError(w, http.StatusBadRequest, "User unauthorized, please log in again.")
-				return
+			output := func() {
+				log.Printf("An error occured while reading userID from context: %s.", err)
 			}
-			// Create a new access token
-			accessTokenString, err := auth.CreateAccessToken(refreshToken.UserID, cfg.JWTSecret)
-			if err != nil {
-				output := func() {
-					log.Printf("An error ocurred while creating a new access token: %v", err)
-				}
-				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
-				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new access token: %s", err))
-			}
-
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while reading userID from context: %s.", err))
+			return
 		}
 
 		// Read the request body

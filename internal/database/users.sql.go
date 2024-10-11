@@ -78,3 +78,30 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
 	return i, err
 }
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET
+    email = COALESCE(NULLIF($1, ''), email),  -- If email is provided, update it, otherwise keep the existing value
+    password_hash = COALESCE(NULLIF($2, ''), password_hash)  -- If password is provided, update it, otherwise keep the existing value
+WHERE id = $3
+RETURNING id, email
+`
+
+type UpdateUserParams struct {
+	Column1 interface{}
+	Column2 interface{}
+	ID      uuid.UUID
+}
+
+type UpdateUserRow struct {
+	ID    uuid.UUID
+	Email string
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
+	row := q.db.QueryRowContext(ctx, updateUser, arg.Column1, arg.Column2, arg.ID)
+	var i UpdateUserRow
+	err := row.Scan(&i.ID, &i.Email)
+	return i, err
+}

@@ -25,7 +25,7 @@ type RefreshToken struct {
 	RefreshToken string
 	CreatedAt    sql.NullTime
 	ExpiresAt    time.Time
-	Revoked      sql.NullBool
+	RevokedAt    sql.NullTime
 }
 
 type User struct {
