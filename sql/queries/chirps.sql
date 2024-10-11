@@ -3,7 +3,7 @@ INSERT INTO chirps (user_id, body)
 VALUES ($1, $2)
 RETURNING id, body;
 
--- name: GetChirpAll :one
+-- name: GetChirpAll :many
 SELECT *
 FROM chirps;
 

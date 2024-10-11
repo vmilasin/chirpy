@@ -23,7 +23,7 @@ type CreateChirpParams struct {
 }
 
 type CreateChirpRow struct {
-	ID   int32
+	ID   uuid.UUID
 	Body string
 }
 
@@ -34,22 +34,38 @@ func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Creat
 	return i, err
 }
 
-const getChirpAll = `-- name: GetChirpAll :one
+const getChirpAll = `-- name: GetChirpAll :many
 SELECT id, user_id, body, created_at, updated_at
 FROM chirps
 `
 
-func (q *Queries) GetChirpAll(ctx context.Context) (Chirp, error) {
-	row := q.db.QueryRowContext(ctx, getChirpAll)
-	var i Chirp
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Body,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) GetChirpAll(ctx context.Context) ([]Chirp, error) {
+	rows, err := q.db.QueryContext(ctx, getChirpAll)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chirp
+	for rows.Next() {
+		var i Chirp
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChirpByID = `-- name: GetChirpByID :one
@@ -58,7 +74,7 @@ FROM chirps
 WHERE id = $1
 `
 
-func (q *Queries) GetChirpByID(ctx context.Context, id int32) (Chirp, error) {
+func (q *Queries) GetChirpByID(ctx context.Context, id uuid.UUID) (Chirp, error) {
 	row := q.db.QueryRowContext(ctx, getChirpByID, id)
 	var i Chirp
 	err := row.Scan(

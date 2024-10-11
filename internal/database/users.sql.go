@@ -34,6 +34,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const getPWHash = `-- name: GetPWHash :one
+SELECT password_hash
+FROM users
+WHERE id = $1
+`
+
+func (q *Queries) GetPWHash(ctx context.Context, id uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRowContext(ctx, getPWHash, id)
+	var password_hash []byte
+	err := row.Scan(&password_hash)
+	return password_hash, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id
 FROM users

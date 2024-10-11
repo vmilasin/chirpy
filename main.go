@@ -73,16 +73,16 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
 	mux.HandleFunc("GET /api/reset", cfg.HandlerMetricsReset)
 
-	mux.HandleFunc("GET /api/chirps", cfg.HandlerGetChirps)
-	mux.HandleFunc("GET /api/chirps/{id}", cfg.HandlerGetChirp)
+	mux.HandleFunc("GET /api/chirps", cfg.HandlerChirpsGetAll)
+	mux.HandleFunc("GET /api/chirps/{id}", cfg.HandlerChirpsGetByID)
 
 	mux.HandleFunc("POST /api/users", cfg.HandlerUserRegistration)
 	mux.HandleFunc("POST /api/login", cfg.HandlerUserLogin)
 
-	mux.HandleFunc("POST /api/chirps", cfg.HandlerPostChirp)
+	mux.HandleFunc("POST /api/chirps", cfg.HandlerChirpsCreate)
 	//mux.HandleFunc("POST /api/refresh", cfg.HandlerRefreshToken)
 	//mux.HandleFunc("POST /api/revoke", cfg.HandlerRevokeToken)
-	mux.HandleFunc("PUT /api/users", cfg.HandlerUpdateUser)
+	mux.HandleFunc("PUT /api/users", cfg.HandlerUserUpdate)
 
 	// Server parameters
 	server := &http.Server{

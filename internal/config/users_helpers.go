@@ -1,17 +1,14 @@
 package config
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -24,199 +21,118 @@ import (
 	RefreshToken           string    `json:"refresh_token,omitempty"`
 	RefreshTokenExpiration time.Time `json:"refresh_token_expiration,omitempty"`
 }
+*/
 
 // Remove password from returning to user on success
-type ReturnUser struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
-}*/
+type LoginReturnUser struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+}
 
 // Email validation for registration & update
-func (cfg *ApiConfig) EmailValidation(email string, w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) EmailValidation(context context.Context, email string) (int, error) {
 	// Validate if email already exists in the DB
-	id, err := cfg.Queries.GetUserByEmail(r.Context(), email)
+	id, err := cfg.Queries.GetUserByEmail(context, email)
 	if err != nil {
-		cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured when trying to lookup email address in the database: %s", err))
-		return
+		output := func() {
+			log.Printf("An error occured when trying to lookup email address in the database: %s", err)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+		returnError := errors.New(fmt.Sprintf("An error occured when trying to lookup email address in the database: %s", err))
+		return http.StatusInternalServerError, returnError
 	}
 	if id != uuid.Nil {
-		cfg.respondWithError(w, http.StatusBadRequest, "E-mail address already in use. Please try another one.")
-		return
+		returnError := errors.New("E-mail address already in use. Please try another one.")
+		return http.StatusBadRequest, returnError
 	}
 
 	// Validate email complexity
 	emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
 	re := regexp.MustCompile(emailPattern)
 	if !re.MatchString(email) {
-		cfg.respondWithError(w, http.StatusBadRequest, "Invalid e-mail address.")
-		return
+		returnError := errors.New("Invalid e-mail address.")
+		return http.StatusBadRequest, returnError
 	}
+
+	return 0, nil
 }
 
 // Password validation for registration & update
-func (cfg *ApiConfig) PasswordValidation(password string, w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) PasswordValidation(password string) (int, error) {
 	// Check password length
 	if len(password) < 6 {
-		cfg.respondWithError(w, http.StatusBadRequest, "The password should be at least 6 characters long.")
-		return
+		returnError := errors.New("The password should be at least 6 characters long.")
+		return http.StatusBadRequest, returnError
 	}
 
 	// Check for at least one lowercase letter
 	hasLowercase := regexp.MustCompile(`[a-z]`).MatchString(password)
 	if !hasLowercase {
-		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one lowercase letter.")
-		return
+		returnError := errors.New("The password should contain at least one lowercase letter.")
+		return http.StatusBadRequest, returnError
 	}
 
 	// Check for at least one uppercase letter
 	hasUppercase := regexp.MustCompile(`[A-Z]`).MatchString(password)
 	if !hasUppercase {
-		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one uppercase letter.")
-		return
+		returnError := errors.New("The password should contain at least one uppercase letter.")
+		return http.StatusBadRequest, returnError
 	}
 
 	// Check for at least one digit
 	hasDigit := regexp.MustCompile(`\d`).MatchString(password)
 	if !hasDigit {
-		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one digit.")
-		return
+		returnError := errors.New("The password should contain at least one digit.")
+		return http.StatusBadRequest, returnError
 	}
 
 	// Check for at least one special character
 	hasSpecial := regexp.MustCompile(`[!@#$%^&*(),.?":{}|<>]`).MatchString(password)
 	if !hasSpecial {
-		cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
-		return
-	}
-}
-
-// Create password hash for new users on sign-up
-func CreatePasswordHash(password string) ([]byte, error) {
-	pw := []byte(password)
-
-	newHash, err := bcrypt.GenerateFromPassword(pw, 12)
-	if err != nil {
-		return []byte{}, err
+		returnError := errors.New("The password should contain at least one special character. (space character excluded)")
+		return http.StatusBadRequest, returnError
 	}
 
-	return newHash, nil
+	return 0, nil
 }
 
 // User login
-func (cfg *ApiConfig) LoginUser(password string, w http.ResponseWriter, r *http.Request) (ReturnUser, error) {
-	/*db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	userID, _, err := db.UserLookup(userEmail)
+func (cfg *ApiConfig) UserAuth(context context.Context, email, password string) (LoginReturnUser, int, error) {
+	// Check if the provided user exists in the DB
+	userID, err := cfg.Queries.GetUserByEmail(context, email)
+	if err == sql.ErrNoRows {
+		returnError := errors.New("Wrong e-mail address. Please type a valid one.")
+		return LoginReturnUser{}, http.StatusUnauthorized, returnError
+	}
 	if err != nil {
-		return ReturnUser{}, err
-	}
-
-	_, dbDat, err := loadDB(db)
-	if err != nil {
-		return ReturnUser{}, err
-	}
-
-	desiredUser := dbDat.Users[userID]
-	hashedPW := desiredUser.PasswordHash
-	providedPW := []byte(userPassword)*/
-	user := d
-
-	if err := bcrypt.CompareHashAndPassword(*hashedPW, providedPW); err != nil {
-		return ReturnUser{}, errors.New("incorrect password")
-	}
-
-	result := ReturnUser{
-		ID:    desiredUser.ID,
-		Email: desiredUser.Email,
-	}
-	return result, nil
-}
-
-func (db *UserDB) AddAccessTokenToUser(jwtExpiration, userID int, JWTSecret []byte) (string, error) {
-	now := time.Now().UTC()
-
-	claims := &jwt.RegisteredClaims{
-		Issuer:    "chirpy",
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(jwtExpiration) * time.Second)),
-		Subject:   strconv.Itoa(userID),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedString, err := token.SignedString(JWTSecret)
-	if err != nil {
-		return "", err
-	}
-
-	return signedString, nil
-}
-
-// Add a new refresh token to user (on login)
-func (db *UserDB) AddRefreshTokenToUser(userID int) (string, error) {
-	db.mux.RLock()
-	defer db.mux.RUnlock()
-
-	// Get user by ID
-	user, err := db.UserLookupByID(userID)
-	if err != nil {
-		return "", err
-	}
-
-	// Create a refresh token string
-	randBytes := make([]byte, 32)
-	_, err = rand.Read(randBytes)
-	if err != nil {
-		return "", err
-	}
-	hexString := hex.EncodeToString(randBytes)
-
-	// Define token expiration timestamp
-	now := time.Now().UTC()
-	expirationTimestamp := now.Add(time.Duration(60*24) * time.Hour)
-
-	user.RefreshToken = hexString
-	user.RefreshTokenExpiration = expirationTimestamp
-
-	// Load the DB && write to it
-	_, dbDat, err := loadDB(db)
-	if err != nil {
-		return "", err
-	}
-	dbDat.Users[user.ID] = user
-
-	return hexString, nil
-}
-
-// Authorization request using an access token
-func (db *UserDB) AccessTokenAuthorization(header string, JWTSecret []byte) (int, error) {
-	var token string
-	if strings.HasPrefix(header, "Bearer ") {
-		token = strings.TrimPrefix(header, "Bearer ")
-		token = strings.TrimSpace(token)
-	} else {
-		err := errors.New("invalid or missing Authorization header")
-		return 0, err
-	}
-
-	claims := &jwt.RegisteredClaims{}
-	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		output := func() {
+			log.Printf("Failed lookup during user login: %s.", err)
 		}
-		return JWTSecret, nil
-	})
-	if err != nil {
-		return 0, err
+		cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+		returnError := errors.New(fmt.Sprintf("An error occured during user authentication: %s", err))
+		return LoginReturnUser{}, http.StatusInternalServerError, returnError
 	}
 
-	userID := claims.Subject
-	convertedUserID, err := strconv.Atoi(userID)
+	hashedPW, err := cfg.Queries.GetPWHash(context, userID)
 	if err != nil {
-		return 0, errors.New("failed to convert userID from subject to int")
+		output := func() {
+			log.Printf("Failed lookup during user login: %s.", err)
+		}
+		cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+		returnError := errors.New(fmt.Sprintf("An error occured during user authentication: %s", err))
+		return LoginReturnUser{}, http.StatusInternalServerError, returnError
 	}
 
-	return convertedUserID, nil
+	if err := bcrypt.CompareHashAndPassword(hashedPW, []byte(password)); err != nil {
+		returnError := errors.New("incorrect password")
+		return LoginReturnUser{}, http.StatusUnauthorized, returnError
+	}
+
+	result := LoginReturnUser{
+		ID:    userID,
+		Email: email,
+	}
+	return result, 0, nil
 }
 
 // Update user info

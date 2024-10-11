@@ -1,9 +1,9 @@
-package database
+package profanity
 
 import "strings"
 
 // Profanity checking
-func profanityCheck(chBody string) (cleanBody string) {
+func ProfanityCheck(chBody string) (cleanBody string) {
 	profaneWords := map[string]bool{
 		"kerfuffle": true,
 		"sharbert":  true,

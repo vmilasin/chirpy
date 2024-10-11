@@ -12,3 +12,8 @@ WHERE id = $1;
 SELECT id
 FROM users
 WHERE email = $1;
+
+-- name: GetPWHash :one
+SELECT password_hash
+FROM users
+WHERE id = $1;

@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 	"net/http"
+
+	"github.com/vmilasin/chirpy/internal/auth"
 )
 
 /* MIDDLEWARE: */
@@ -24,6 +26,25 @@ func (cfg *ApiConfig) AuthMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), "userID", userID)
 
 		// Pass the new context to the next handler
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (cfg *ApiConfig) jwtAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := r.Header.Get("Authorization")
+		if tokenString == "" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		userID, err := auth.AccessTokenAuthorization(tokenString, cfg.JWTSecret)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

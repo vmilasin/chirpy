@@ -1,6 +1,8 @@
 package config
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/google/uuid"
+	"github.com/vmilasin/chirpy/internal/auth"
 	"github.com/vmilasin/chirpy/internal/database"
 )
 
@@ -19,21 +23,24 @@ type CreateUserParamsInput struct {
 }
 
 type loginRequest struct {
-	Email            string `json:"email"`
-	Password         string `json:"password"`
-	ExpiresInSeconds *int   `json:"expires_in_seconds,omitempty"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type loginResponse struct {
-	ID           int    `json:"id"`
-	Email        string `json:"email"`
-	Token        string `json:"token"`
-	RefreshToken string `json:"refresh_token"`
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 type UpdateUserInfo struct {
 	Email    *string `json:"email"`
 	Password *string `json:"password"`
+}
+
+type CreateChirpRequest struct {
+	Body string `json:"body"`
 }
 
 // Health check
@@ -98,10 +105,18 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		}
 
 		// Validate email address & password provided by the user
-		cfg.EmailValidation(newUserInput.Email, w, r)
-		cfg.PasswordValidation(newUserInput.Password, w, r)
+		httpStatus, err := cfg.EmailValidation(r.Context(), newUserInput.Email)
+		if err != nil {
+			cfg.respondWithError(w, httpStatus, err.Error())
+		}
 
-		newPwHash, err := CreatePasswordHash(newUserInput.Password)
+		httpStatus, err = cfg.PasswordValidation(newUserInput.Password)
+		if err != nil {
+			cfg.respondWithError(w, httpStatus, err.Error())
+		}
+
+		// Create a new password hash from the provided PW
+		newPwHash, err := auth.CreatePasswordHash(newUserInput.Password)
 		if err != nil {
 			output := func() {
 				log.Printf("Failed to password hash for new user '%s': %s.", newUserInput.Email, err)
@@ -111,12 +126,12 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 			return
 		}
 
+		// Create user in database
 		newUser := database.CreateUserParams{
 			Email:        newUserInput.Email,
 			PasswordHash: newPwHash,
 		}
 
-		// Create user in database
 		createdUser, err := cfg.Queries.CreateUser(r.Context(), newUser)
 		if err != nil {
 			output := func() {
@@ -151,50 +166,60 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Check if the provided user exists in the DB
-		_, exists, err := cfg.AppDatabase.UserDB.UserLookup(loginReq.Email)
-		if !exists {
-			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong e-mail address. Please type a valid one.")
-			return
-		}
-		if err != nil {
-			output := func() {
-				log.Printf("Failed lookup during user login: %s.\n", err)
-			}
-			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured during user authentication: %s", err))
-			return
-		}
-
 		// Log in to the desired user
-		currentUser, err := cfg.AppDatabase.UserDB.LoginUser(loginReq.Email, loginReq.Password)
+		loginUser, httpStatus, err := cfg.UserAuth(r.Context(), loginReq.Email, loginReq.Password)
 		if err != nil {
-			cfg.respondWithError(w, http.StatusUnauthorized, "Wrong password.")
+			cfg.respondWithError(w, httpStatus, err.Error())
 			return
 		}
 
 		// Create a new access token
-		var jwtExpiration int
-		if loginReq.ExpiresInSeconds != nil && *loginReq.ExpiresInSeconds <= 1*60*60 {
-			jwtExpiration = *loginReq.ExpiresInSeconds
-		} else {
-			jwtExpiration = 1 * 60 * 60
-		}
-
-		accessTokenString, err := cfg.AppDatabase.UserDB.AddAccessTokenToUser(jwtExpiration, currentUser.ID, cfg.JWTSecret)
+		accessTokenString, err := auth.CreateAccessToken(loginUser.ID, cfg.JWTSecret)
 		if err != nil {
-			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new access token: %s", err.Error()))
+			output := func() {
+				log.Printf("An error ocurred while creating a new access token: %v", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new access token: %s", err))
+			return
 		}
 
 		// Create a new refresh token
-		refreshTokenString, err := cfg.AppDatabase.UserDB.AddRefreshTokenToUser(currentUser.ID)
+		refreshTokenString, tokenExpiration, err := auth.CreateRefreshToken()
 		if err != nil {
-			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new refresh token: %s", err.Error()))
+			output := func() {
+				log.Printf("An error ocurred while creating a new refresh token: %v", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new refresh token: %v", err))
+			return
 		}
 
+		newRefreshToken := database.CreateRefreshTokenParams{
+			UserID:       loginUser.ID,
+			RefreshToken: refreshTokenString,
+			ExpiresAt:    tokenExpiration,
+		}
+		if _, err := cfg.Queries.CreateRefreshToken(r.Context(), newRefreshToken); err != nil {
+			output := func() {
+				log.Printf("Could not save refresh token.")
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, "Could not save refresh token.")
+			return
+		}
+
+		// Add user auth info to context
+		ctx := r.Context()
+		ctx = context.WithValue(r.Context(), "userID", loginUser.ID)
+		ctx = context.WithValue(r.Context(), "accessToken", accessTokenString)
+		ctx = context.WithValue(r.Context(), "refreshToken", refreshTokenString)
+
+		r = r.WithContext(ctx)
+
 		returnResponse := loginResponse{
-			ID:           currentUser.ID,
-			Email:        currentUser.Email,
+			ID:           loginUser.ID,
+			Email:        loginUser.Email,
 			Token:        accessTokenString,
 			RefreshToken: refreshTokenString,
 		}
@@ -205,7 +230,8 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+/*
+func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPut {
 		//Get the authorization header and pass it to the access token auth function it should return the user's ID if successful
 		authHeader := r.Header.Get("Authorization")
@@ -269,7 +295,7 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 			cfg.respondWithError(w, http.StatusBadRequest, "The password should contain at least one special character. (space character excluded)")
 			return
 		}
-		*/
+
 
 		updatedUser, err := cfg.AppDatabase.UserDB.UpdateUser(userID, updateInfo.Email, updateInfo.Password)
 		if err != nil {
@@ -281,12 +307,13 @@ func (cfg *ApiConfig) HandlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be PUT
 	}
 }
+*/
 
 // GET all chirps
-func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerChirpsGetAll(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		// Fetch all chirps from the DB
-		loadedChirps, err := cfg.AppDatabase.ChirpDB.GetChirps()
+		loadedChirps, err := cfg.Queries.GetChirpAll(r.Context())
 		if err != nil {
 			output := func() {
 				log.Printf("An error occured while fetching chirps: %s.", err)
@@ -304,7 +331,7 @@ func (cfg *ApiConfig) HandlerGetChirps(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET a chirp
-func (cfg *ApiConfig) HandlerGetChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		pathParts := strings.Split(r.URL.Path, "/")
 		if len(pathParts) < 4 {
@@ -313,14 +340,14 @@ func (cfg *ApiConfig) HandlerGetChirp(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Convert the chirp ID from string to int
-		requestedId, err := strconv.Atoi(pathParts[3])
+		requestedId, err := uuid.Parse(pathParts[3])
 		if err != nil {
 			cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.")
 			return
 		}
 
 		// Fetch the requested chirp from the DB
-		loadedChirp, err := cfg.AppDatabase.ChirpDB.GetChirp(requestedId)
+		loadedChirp, err := cfg.Queries.GetChirpByID(r.Context(), requestedId)
 		if err != nil {
 			cfg.respondWithError(w, http.StatusNotFound, "Chirp not found.")
 			return
@@ -334,8 +361,34 @@ func (cfg *ApiConfig) HandlerGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST a chirp
-func (cfg *ApiConfig) HandlerPostChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
+		// Check the access token
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			cfg.respondWithError(w, http.StatusBadRequest, "Missing Authorization header.")
+			return
+		}
+
+		userID, err := auth.AccessTokenAuthorization(authHeader, cfg.JWTSecret)
+		if err != nil {
+			refreshToken, err := cfg.Queries.GetRefreshTokenForUser(r.Context(), userID)
+			if err == sql.ErrNoRows {
+				cfg.respondWithError(w, http.StatusBadRequest, "User unauthorized, please log in again.")
+				return
+			}
+			// Create a new access token
+			accessTokenString, err := auth.CreateAccessToken(refreshToken.UserID, cfg.JWTSecret)
+			if err != nil {
+				output := func() {
+					log.Printf("An error ocurred while creating a new access token: %v", err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new access token: %s", err))
+			}
+
+		}
+
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -344,20 +397,22 @@ func (cfg *ApiConfig) HandlerPostChirp(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Parse JSON
-		var chirp = database.Chirp{}
+		var chirp = CreateChirpRequest{}
 		if err := json.Unmarshal(body, &chirp); err != nil {
 			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.")
 			return
 		}
 
 		// Validate chirp
-		if chirp.Body == "" || len(chirp.Body) > 140 {
-			cfg.respondWithError(w, http.StatusBadRequest, "Chirp must be long 140 characters or less.")
-			return
+		cleanChirp := cfg.ChirpValidation(chirp.Body, w, r)
+
+		newChirpData := database.CreateChirpParams{
+			UserID: userID,
+			Body:   cleanChirp,
 		}
 
 		// Create chirp in database
-		newChirp, err := cfg.AppDatabase.ChirpDB.CreateChirp(chirp.Body)
+		newChirp, err := cfg.Queries.CreateChirp(r.Context(), newChirpData)
 		if err != nil {
 			output := func() {
 				log.Printf("An error occured during chirp creation: %s.", err)
