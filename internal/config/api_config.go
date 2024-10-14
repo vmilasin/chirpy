@@ -15,9 +15,10 @@ type ApiConfig struct {
 	Queries        *database.Queries
 	AppLogs        *logger.AppLogs
 	JWTSecret      []byte
+	Platform       string
 }
 
-func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]string, jwtSecret []byte) *ApiConfig {
+func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]string, jwtSecret []byte, platform string) *ApiConfig {
 	internalLogs := logger.InitiateLogs(logFiles)
 
 	cfg := &ApiConfig{
@@ -26,6 +27,7 @@ func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]str
 		Queries:        queries,
 		AppLogs:        internalLogs,
 		JWTSecret:      jwtSecret,
+		Platform:       platform,
 	}
 
 	loggerOutput := func() {

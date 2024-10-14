@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/vmilasin/chirpy/internal/auth"
@@ -18,6 +18,13 @@ import (
 type CreateUserParamsInput struct {
 	Email    string
 	Password string
+}
+
+type CreateUserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 type loginRequest struct {
@@ -38,7 +45,16 @@ type UpdateUserInfo struct {
 }
 
 type CreateChirpRequest struct {
-	Body string `json:"body"`
+	Body string    `json:"body"`
+	ID   uuid.UUID `json:"user_id"`
+}
+
+type CreateChirpResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	UserID    uuid.UUID `json:"user_id"`
 }
 
 // Health check
@@ -71,6 +87,28 @@ func (cfg *ApiConfig) HandlerMetrics(w http.ResponseWriter, r *http.Request) {
 			log.Printf("There was an error while trying to execute template %s: %s.", metricsTemplate, err)
 		}
 		cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+	}
+}
+
+// Drop all DB entries when PLATFORM="dev" in .env file
+func (cfg *ApiConfig) HandlerDBReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		if cfg.Platform == "dev" {
+			if err := cfg.Queries.TruncateAllTables(r.Context()); err != nil {
+				output := func() {
+					log.Printf("An error occured while trying to truncate all tables: %s.", err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.HandlerLog, output)
+				msg := fmt.Sprintf("An error occured while trying to truncate all tables: %s.", err)
+				cfg.respondWithError(w, http.StatusForbidden, msg)
+				return
+			}
+			cfg.respondWithJSON(w, http.StatusOK, "OK")
+			return
+		}
+		cfg.respondWithError(w, http.StatusForbidden, "Forbidden")
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be POST
 	}
 }
 
@@ -107,10 +145,10 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		if err != nil {
 			cfg.respondWithError(w, httpStatus, err.Error())
 		}
-		httpStatus, err = cfg.PasswordValidation(newUserInput.Password)
+		/*httpStatus, err = cfg.PasswordValidation(newUserInput.Password)
 		if err != nil {
 			cfg.respondWithError(w, httpStatus, err.Error())
-		}
+		}*/
 
 		// Create a new password hash from the provided PW
 		newPwHash, err := auth.CreatePasswordHash(newUserInput.Password)
@@ -139,8 +177,15 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 			return
 		}
 
+		createdUserResponse := CreateUserResponse{
+			ID:        createdUser.ID,
+			CreatedAt: createdUser.CreatedAt,
+			UpdatedAt: createdUser.UpdatedAt,
+			Email:     createdUser.Email,
+		}
+
 		// Respond with JSON
-		cfg.respondWithJSON(w, http.StatusCreated, createdUser)
+		cfg.respondWithJSON(w, http.StatusCreated, createdUserResponse)
 	} else {
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
 	}
@@ -253,10 +298,10 @@ func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) 
 		var newPwHash []byte
 		if updateInfo.Password != nil {
 			// Validate password
-			httpStatus, err := cfg.PasswordValidation(*updateInfo.Password)
+			/*httpStatus, err := cfg.PasswordValidation(*updateInfo.Password)
 			if err != nil {
 				cfg.respondWithError(w, httpStatus, err.Error())
-			}
+			}*/
 			// Create a new PW hash
 			newPwHash, err = auth.CreatePasswordHash(*updateInfo.Password)
 			if err != nil {
@@ -309,16 +354,10 @@ func (cfg *ApiConfig) HandlerChirpsGetAll(w http.ResponseWriter, r *http.Request
 // GET a chirp
 func (cfg *ApiConfig) HandlerChirpsGetByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		pathParts := strings.Split(r.URL.Path, "/")
-		if len(pathParts) < 4 {
-			cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.")
-			return
-		}
-
-		// Convert the chirp ID from string to int
-		requestedId, err := uuid.Parse(pathParts[3])
+		// Get the chirp ID from placeholder "chirpID" in request
+		requestedId, err := uuid.Parse(r.PathValue("chirpID"))
 		if err != nil {
-			cfg.respondWithError(w, http.StatusBadRequest, "Invalid chirp ID.")
+			cfg.respondWithError(w, http.StatusBadRequest, "Failed to get chirpID from the URL.")
 			return
 		}
 
@@ -382,8 +421,16 @@ func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request
 			return
 		}
 
+		newChirpResponse := CreateChirpResponse{
+			ID:        newChirp.ID,
+			Body:      newChirp.Body,
+			CreatedAt: newChirp.CreatedAt,
+			UpdatedAt: newChirp.UpdatedAt,
+			UserID:    newChirp.UserID,
+		}
+
 		// Respond with JSON
-		cfg.respondWithJSON(w, http.StatusCreated, newChirp)
+		cfg.respondWithJSON(w, http.StatusCreated, newChirpResponse)
 	} else {
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET - added for extra security
 	}

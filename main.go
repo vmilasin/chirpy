@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"log"
@@ -11,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/vmilasin/chirpy/internal/config"
 	"github.com/vmilasin/chirpy/internal/database"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -31,7 +34,7 @@ func main() {
 	logFiles["userLog"] = filepath.Join(baseDir, "logs", "user.log")
 
 	// --debug flag drops the table at the start for development purposes
-	// WARNING: THIS DROPS THE DATABASE FILE!!!
+	// WARNING: THIS DROPS ALL DATABASE ENTRIES!!!
 	dbg := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
 	if *dbg {
@@ -57,8 +60,15 @@ func main() {
 	queries := database.New(db)
 	// Get the JWT secret
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+	// Get the PLATFORM value
+	platform := os.Getenv("PLATFORM")
 	// Initialize API config
-	cfg := config.NewApiConfig(db, queries, logFiles, jwtSecret)
+	cfg := config.NewApiConfig(db, queries, logFiles, jwtSecret, platform)
+
+	if *dbg {
+		cfg.Queries.TruncateAllTables(context.Background())
+		log.Print("ALL DATABASE TABLES TRUNCATED")
+	}
 
 	// ServeMux is an HTTP request router
 	mux := http.NewServeMux()
@@ -71,15 +81,18 @@ func main() {
 	mux.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", fileserver)))
 	mux.HandleFunc("GET /api/healthz", cfg.HandlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
+	mux.HandleFunc("POST /admin/reset", cfg.HandlerDBReset)
 	mux.HandleFunc("GET /api/reset", cfg.HandlerMetricsReset)
 
 	mux.HandleFunc("GET /api/chirps", cfg.HandlerChirpsGetAll)
-	mux.HandleFunc("GET /api/chirps/{id}", cfg.HandlerChirpsGetByID)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.HandlerChirpsGetByID)
 
 	mux.HandleFunc("POST /api/users", cfg.HandlerUserRegistration)
 	mux.HandleFunc("POST /api/login", cfg.HandlerUserLogin)
 
-	mux.Handle("POST /api/chirps", cfg.AuthMiddleware(http.HandlerFunc(cfg.HandlerChirpsCreate)))
+	mux.HandleFunc("POST /api/chirps", cfg.HandlerChirpsCreate)
+
+	//mux.Handle("POST /api/chirps", cfg.AuthMiddleware(http.HandlerFunc(cfg.HandlerChirpsCreate)))
 	//mux.HandleFunc("POST /api/refresh", cfg.HandlerRefreshToken)
 	//mux.HandleFunc("POST /api/revoke", cfg.HandlerRevokeToken)
 	mux.Handle("PUT /api/users", cfg.AuthMiddleware(http.HandlerFunc(cfg.HandlerUserUpdate)))

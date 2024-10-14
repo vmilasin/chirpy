@@ -1,6 +1,6 @@
-package config
+/*package config
 
-/*
+
 import (
 	"database/sql"
 	"encoding/json"

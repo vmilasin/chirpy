@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,44 +15,58 @@ import (
 const createChirp = `-- name: CreateChirp :one
 INSERT INTO chirps (user_id, body)
 VALUES ($1, $2)
-RETURNING id, body
+RETURNING id, user_id, body, created_at, updated_at
 `
 
 type CreateChirpParams struct {
-	UserID uuid.UUID
-	Body   string
+	UserID uuid.UUID `json:"user_id"`
+	Body   string    `json:"body"`
 }
 
-type CreateChirpRow struct {
-	ID   uuid.UUID
-	Body string
-}
-
-func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (CreateChirpRow, error) {
+func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp, error) {
 	row := q.db.QueryRowContext(ctx, createChirp, arg.UserID, arg.Body)
-	var i CreateChirpRow
-	err := row.Scan(&i.ID, &i.Body)
+	var i Chirp
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const getChirpAll = `-- name: GetChirpAll :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT
+    id AS "id", --json:"id"
+    body AS "body", --json:"body"
+    user_id AS "user_id", --json:"user_id"
+    created_at AS "created_at", --json:"created_at"
+    updated_at AS "updated_at" --json:"updated_at"
 FROM chirps
 `
 
-func (q *Queries) GetChirpAll(ctx context.Context) ([]Chirp, error) {
+type GetChirpAllRow struct {
+	ID        uuid.UUID `json:"id"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GetChirpAll(ctx context.Context) ([]GetChirpAllRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChirpAll)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Chirp
+	var items []GetChirpAllRow
 	for rows.Next() {
-		var i Chirp
+		var i GetChirpAllRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
 			&i.Body,
+			&i.UserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

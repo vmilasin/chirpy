@@ -12,26 +12,26 @@ import (
 )
 
 type Chirp struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	Body      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type RefreshToken struct {
-	ID           int32
-	UserID       uuid.UUID
-	RefreshToken string
-	CreatedAt    sql.NullTime
-	ExpiresAt    time.Time
-	RevokedAt    sql.NullTime
+	ID           int32        `json:"id"`
+	UserID       uuid.UUID    `json:"user_id"`
+	RefreshToken string       `json:"refresh_token"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+	ExpiresAt    time.Time    `json:"expires_at"`
+	RevokedAt    sql.NullTime `json:"revoked_at"`
 }
 
 type User struct {
-	ID           uuid.UUID
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	Email        string
-	PasswordHash []byte
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	PasswordHash []byte    `json:"password_hash"`
 }

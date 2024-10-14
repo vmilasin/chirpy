@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,23 +15,30 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash)
 VALUES ($1, $2)
-RETURNING id, email
+RETURNING id, email, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Email        string
-	PasswordHash []byte
+	Email        string `json:"email"`
+	PasswordHash []byte `json:"password_hash"`
 }
 
 type CreateUserRow struct {
-	ID    uuid.UUID
-	Email string
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.PasswordHash)
 	var i CreateUserRow
-	err := row.Scan(&i.ID, &i.Email)
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -67,9 +75,9 @@ WHERE id = $1
 `
 
 type GetUserByIDRow struct {
-	ID           uuid.UUID
-	Email        string
-	PasswordHash []byte
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash []byte    `json:"password_hash"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
@@ -89,14 +97,14 @@ RETURNING id, email
 `
 
 type UpdateUserParams struct {
-	Column1 interface{}
-	Column2 interface{}
-	ID      uuid.UUID
+	Column1 interface{} `json:"column_1"`
+	Column2 interface{} `json:"column_2"`
+	ID      uuid.UUID   `json:"id"`
 }
 
 type UpdateUserRow struct {
-	ID    uuid.UUID
-	Email string
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
