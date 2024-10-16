@@ -7,10 +7,29 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+const checkRefreshTokenValidity = `-- name: CheckRefreshTokenValidity :one
+SELECT revoked_at, user_id
+FROM refresh_tokens
+where refresh_token =$1
+`
+
+type CheckRefreshTokenValidityRow struct {
+	RevokedAt sql.NullTime `json:"revoked_at"`
+	UserID    uuid.UUID    `json:"user_id"`
+}
+
+func (q *Queries) CheckRefreshTokenValidity(ctx context.Context, refreshToken string) (CheckRefreshTokenValidityRow, error) {
+	row := q.db.QueryRowContext(ctx, checkRefreshTokenValidity, refreshToken)
+	var i CheckRefreshTokenValidityRow
+	err := row.Scan(&i.RevokedAt, &i.UserID)
+	return i, err
+}
 
 const createRefreshToken = `-- name: CreateRefreshToken :one
 INSERT INTO refresh_tokens (user_id, refresh_token, expires_at)
@@ -32,9 +51,9 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 }
 
 const getRefreshTokenForUser = `-- name: GetRefreshTokenForUser :one
-SELECT id, user_id, refresh_token, created_at, expires_at, revoked_at
+SELECT id, user_id, refresh_token, created_at, expires_at, revoked_at, updated_at
 FROM refresh_tokens
-WHERE user_id = $1 and revoked = FALSE
+WHERE user_id = $1 and revoked_at IS NULL
 `
 
 func (q *Queries) GetRefreshTokenForUser(ctx context.Context, userID uuid.UUID) (RefreshToken, error) {
@@ -47,6 +66,19 @@ func (q *Queries) GetRefreshTokenForUser(ctx context.Context, userID uuid.UUID) 
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
+UPDATE refresh_tokens
+SET
+    revoked_at = CURRENT_TIMESTAMP
+WHERE refresh_token =$1
+`
+
+func (q *Queries) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	_, err := q.db.ExecContext(ctx, revokeRefreshToken, refreshToken)
+	return err
 }

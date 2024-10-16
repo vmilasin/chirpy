@@ -2,8 +2,12 @@ package config
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/vmilasin/chirpy/internal/auth"
 )
@@ -11,7 +15,9 @@ import (
 type contextKey string
 
 const (
-	ctxUserID contextKey = "userID"
+	ctxUserID                contextKey = "userID"
+	ctxRefreshToken          contextKey = "refreshToken"
+	ctxRefreshTokenRevokedAt contextKey = "refreshTokenRevokedAt"
 )
 
 /* MIDDLEWARE: */
@@ -23,7 +29,7 @@ func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *ApiConfig) AuthMiddleware(next http.Handler) http.Handler {
+func (cfg *ApiConfig) AuthTokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
 		if tokenString == "" {
@@ -32,13 +38,50 @@ func (cfg *ApiConfig) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		userID, err := auth.AccessTokenAuthorization(tokenString, cfg.JWTSecret)
+		userID, err := auth.AccessTokenAuth(tokenString, cfg.JWTSecret)
 		if err != nil {
 			cfg.resolveAuthTokenError(w, err)
 			return
 		}
 
 		ctx := context.WithValue(r.Context(), ctxUserID, userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (cfg *ApiConfig) RefreshTokenMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := r.Header.Get("Authorization")
+		if tokenString == "" {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid or missing refresh token.")
+			return
+		}
+
+		var token string
+		if strings.HasPrefix(tokenString, "Bearer ") {
+			token = strings.TrimPrefix(tokenString, "Bearer ")
+			token = strings.TrimSpace(token)
+		} else {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid or missing Authorization header.")
+		}
+
+		returnedToken, err := cfg.Queries.CheckRefreshTokenValidity(r.Context(), token)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				cfg.respondWithError(w, http.StatusUnauthorized, "No refresh token found.")
+			} else {
+				output := func() {
+					log.Printf("An error occured during refresh token validation: %s.", err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured during refresh token validation: %s.", err))
+				return
+			}
+		}
+
+		ctx := context.WithValue(r.Context(), ctxRefreshToken, token)
+		ctx = context.WithValue(ctx, ctxUserID, returnedToken.UserID)
+		ctx = context.WithValue(ctx, ctxRefreshTokenRevokedAt, returnedToken.RevokedAt)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

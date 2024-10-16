@@ -47,7 +47,7 @@ func CreateAccessToken(userID uuid.UUID, JWTSecret []byte) (string, error) {
 }
 
 // Authorization request using an access token
-func AccessTokenAuthorization(header string, JWTSecret []byte) (uuid.UUID, error) {
+func AccessTokenAuth(header string, JWTSecret []byte) (uuid.UUID, error) {
 	var token string
 	if strings.HasPrefix(header, "Bearer ") {
 		token = strings.TrimPrefix(header, "Bearer ")

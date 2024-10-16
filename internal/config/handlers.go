@@ -1,6 +1,7 @@
 package config
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,6 +58,10 @@ type CreateChirpResponse struct {
 	UserID    uuid.UUID `json:"user_id"`
 }
 
+type RefreshTokenResponse struct {
+	Token string `json:"token"`
+}
+
 // Health check
 func (cfg *ApiConfig) HandlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
@@ -108,7 +113,7 @@ func (cfg *ApiConfig) HandlerDBReset(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.respondWithError(w, http.StatusForbidden, "Forbidden")
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be POST
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
@@ -187,7 +192,7 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		// Respond with JSON
 		cfg.respondWithJSON(w, http.StatusCreated, createdUserResponse)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
@@ -260,7 +265,7 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 
 		cfg.respondWithJSON(w, http.StatusOK, returnResponse)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
@@ -326,7 +331,7 @@ func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) 
 		}
 		cfg.respondWithJSON(w, http.StatusOK, updatedUser)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be PUT
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
@@ -347,7 +352,7 @@ func (cfg *ApiConfig) HandlerChirpsGetAll(w http.ResponseWriter, r *http.Request
 		// Respond with JSON
 		cfg.respondWithJSON(w, http.StatusOK, loadedChirps)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
@@ -371,22 +376,14 @@ func (cfg *ApiConfig) HandlerChirpsGetByID(w http.ResponseWriter, r *http.Reques
 		// Respond with JSON
 		cfg.respondWithJSON(w, http.StatusOK, loadedChirp)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
 // POST a chirp
 func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		userID, err := uuid.Parse(r.Context().Value("userID").(string))
-		if err != nil {
-			output := func() {
-				log.Printf("An error occured while reading userID from context: %s.", err)
-			}
-			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while reading userID from context: %s.", err))
-			return
-		}
+		userID := r.Context().Value(ctxUserID).(uuid.UUID)
 
 		// Read the request body
 		body, err := io.ReadAll(r.Body)
@@ -432,13 +429,56 @@ func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		// Respond with JSON
 		cfg.respondWithJSON(w, http.StatusCreated, newChirpResponse)
 	} else {
-		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.") // HTTP requests should be GET - added for extra security
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
 
-/*func (cfg *ApiConfig) HandlerRefreshToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPut {
+// Refresh - return a new access token if a user provides a valid refresh token
+func (cfg *ApiConfig) HandlerRefreshTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		userID := r.Context().Value(ctxUserID).(uuid.UUID)
+		revokedAt := r.Context().Value(ctxRefreshTokenRevokedAt).(sql.NullTime)
 
+		if !revokedAt.Valid {
+			newAuthToken, err := auth.CreateAccessToken(userID, cfg.JWTSecret)
+			if err != nil {
+				output := func() {
+					log.Printf("An error ocurred while creating a new access token: %v", err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while creating a new access token: %s", err))
+				return
+			}
+			response := RefreshTokenResponse{
+				Token: newAuthToken,
+			}
+			cfg.respondWithJSON(w, http.StatusOK, response)
+			return
+		}
+		cfg.respondWithError(w, http.StatusUnauthorized, "The provided refresh token was revoked.")
+
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
-*/
+
+// Revoke a refresh token
+func (cfg *ApiConfig) HandlerRefreshTokenRevoke(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		refreshToken := r.Context().Value(ctxRefreshToken).(string)
+
+		err := cfg.Queries.RevokeRefreshToken(r.Context(), refreshToken)
+		if err != nil {
+			output := func() {
+				log.Printf("An error ocurred while revoking the refresh token in the database: %v", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error ocurred while revoking the refresh token in the database: %s", err))
+			return
+		}
+
+		cfg.respondWithJSON(w, http.StatusNoContent, nil)
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
+	}
+}
