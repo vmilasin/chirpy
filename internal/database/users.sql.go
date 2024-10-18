@@ -91,14 +91,14 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
     email = COALESCE(NULLIF($1, ''), email),  -- If email is provided, update it, otherwise keep the existing value
-    password_hash = COALESCE(NULLIF($2, ''), password_hash)  -- If password is provided, update it, otherwise keep the existing value
+    password_hash = COALESCE($2::BYTEA, password_hash)  -- If password is provided, update it, otherwise keep the existing value
 WHERE id = $3
 RETURNING id, email
 `
 
 type UpdateUserParams struct {
 	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
+	Column2 []byte      `json:"column_2"`
 	ID      uuid.UUID   `json:"id"`
 }
 

@@ -271,15 +271,7 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPut {
-		userID, err := uuid.Parse(r.Context().Value("userID").(string))
-		if err != nil {
-			output := func() {
-				log.Printf("An error occured while reading userID from context: %s.", err)
-			}
-			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
-			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while reading userID from context: %s.", err))
-			return
-		}
+		userID := r.Context().Value(ctxUserID).(uuid.UUID)
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -432,6 +424,52 @@ func (cfg *ApiConfig) HandlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}
 }
+
+func (cfg *ApiConfig) HandlerChirpsDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodDelete {
+		userID := r.Context().Value(ctxUserID).(uuid.UUID)
+		chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+		if err != nil {
+			cfg.respondWithError(w, http.StatusBadRequest, "Failed to get chirpID from the URL.")
+			return
+		}
+
+		chirp, err := cfg.Queries.GetChirpByID(r.Context(), chirpID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				cfg.respondWithError(w, http.StatusNotFound, "Failed to find a chirp with provided ID.")
+				return
+			}
+			output := func() {
+				log.Printf("Failed to find chirp: %s.", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find chirp: '%s'", err))
+			return
+		}
+
+		if chirp.UserID != userID {
+			cfg.respondWithError(w, http.StatusForbidden, "Not authorized to delete other user's chirps.")
+			return
+		}
+
+		err = cfg.Queries.DeleteChirp(r.Context(), chirpID)
+		if err != nil {
+			output := func() {
+				log.Printf("Failed to delete chirp: %s.", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete chirp: '%s'", err))
+			return
+		}
+
+		cfg.respondWithJSON(w, http.StatusNoContent, nil)
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
+	}
+}
+
+// REFRESH TOKENS
 
 // Refresh - return a new access token if a user provides a valid refresh token
 func (cfg *ApiConfig) HandlerRefreshTokenRefresh(w http.ResponseWriter, r *http.Request) {

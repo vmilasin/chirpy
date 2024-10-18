@@ -22,6 +22,6 @@ WHERE id = $1;
 UPDATE users
 SET
     email = COALESCE(NULLIF($1, ''), email),  -- If email is provided, update it, otherwise keep the existing value
-    password_hash = COALESCE(NULLIF($2, ''), password_hash)  -- If password is provided, update it, otherwise keep the existing value
+    password_hash = COALESCE($2::BYTEA, password_hash)  -- If password is provided, update it, otherwise keep the existing value
 WHERE id = $3
 RETURNING id, email;

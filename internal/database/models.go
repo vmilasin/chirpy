@@ -26,7 +26,6 @@ type RefreshToken struct {
 	CreatedAt    sql.NullTime `json:"created_at"`
 	ExpiresAt    time.Time    `json:"expires_at"`
 	RevokedAt    sql.NullTime `json:"revoked_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
 type User struct {

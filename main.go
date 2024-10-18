@@ -77,8 +77,8 @@ func main() {
 	fileserver := http.FileServer(http.Dir(filepathRoot))
 
 	/* HANDLER REGISTRATION: */
-	//http.Handle("/user", authMiddleware(http.HandlerFunc(userHandler)))
 	mux.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", fileserver)))
+
 	mux.HandleFunc("GET /api/healthz", cfg.HandlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", cfg.HandlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.HandlerDBReset)
@@ -91,7 +91,9 @@ func main() {
 	mux.HandleFunc("POST /api/login", cfg.HandlerUserLogin)
 
 	mux.Handle("POST /api/chirps", cfg.AuthTokenMiddleware(http.HandlerFunc(cfg.HandlerChirpsCreate)))
+	mux.Handle("DELETE /api/chirps/{chirpID}", cfg.AuthTokenMiddleware((http.HandlerFunc(cfg.HandlerChirpsDelete))))
 	mux.Handle("PUT /api/users", cfg.AuthTokenMiddleware(http.HandlerFunc(cfg.HandlerUserUpdate)))
+
 	mux.Handle("POST /api/refresh", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRefresh)))
 	mux.Handle("POST /api/revoke", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRevoke)))
 
