@@ -22,10 +22,11 @@ type CreateUserParamsInput struct {
 }
 
 type CreateUserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type loginRequest struct {
@@ -38,6 +39,7 @@ type loginResponse struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	ChirpyRed    bool      `json:"is_chirpy_red"`
 }
 
 type UpdateUserInfo struct {
@@ -60,6 +62,13 @@ type CreateChirpResponse struct {
 
 type RefreshTokenResponse struct {
 	Token string `json:"token"`
+}
+
+type EnableChirpyRedRequest struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID uuid.UUID `json:"user_id"`
+	}
 }
 
 // Health check
@@ -183,10 +192,11 @@ func (cfg *ApiConfig) HandlerUserRegistration(w http.ResponseWriter, r *http.Req
 		}
 
 		createdUserResponse := CreateUserResponse{
-			ID:        createdUser.ID,
-			CreatedAt: createdUser.CreatedAt,
-			UpdatedAt: createdUser.UpdatedAt,
-			Email:     createdUser.Email,
+			ID:          createdUser.ID,
+			CreatedAt:   createdUser.CreatedAt,
+			UpdatedAt:   createdUser.UpdatedAt,
+			Email:       createdUser.Email,
+			IsChirpyRed: createdUser.IsChirpyRed,
 		}
 
 		// Respond with JSON
@@ -256,11 +266,22 @@ func (cfg *ApiConfig) HandlerUserLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		isChirpyRed, err := cfg.Queries.CheckChirpyRed(r.Context(), loginUser.ID)
+		if err != nil {
+			output := func() {
+				log.Printf("An error occured when trying to check ChirpyRed status: %s", err)
+			}
+			cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+			cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured when trying to check ChirpyRed status: %s", err))
+			return
+		}
+
 		returnResponse := loginResponse{
 			ID:           loginUser.ID,
 			Email:        loginUser.Email,
 			Token:        accessTokenString,
 			RefreshToken: refreshTokenString,
+			ChirpyRed:    isChirpyRed,
 		}
 
 		cfg.respondWithJSON(w, http.StatusOK, returnResponse)
@@ -516,6 +537,52 @@ func (cfg *ApiConfig) HandlerRefreshTokenRevoke(w http.ResponseWriter, r *http.R
 		}
 
 		cfg.respondWithJSON(w, http.StatusNoContent, nil)
+	} else {
+		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
+	}
+}
+
+// WEBHOOKS
+
+// Enable chirpy red for a user - Polka webhook
+func (cfg *ApiConfig) HandlerWebhooksPolkaEnableChirpyRed(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid request body.")
+			return
+		}
+
+		var enableChirpyRedRequest EnableChirpyRedRequest
+		if err := json.Unmarshal(body, &enableChirpyRedRequest); err != nil {
+			cfg.respondWithError(w, http.StatusBadRequest, "Invalid JSON.")
+			return
+		}
+
+		if enableChirpyRedRequest.Event != "user.upgraded" {
+			cfg.respondWithError(w, http.StatusNoContent, "Invalid event.")
+			return
+		}
+		if enableChirpyRedRequest.Event == "user.upgraded" {
+			id, err := cfg.Queries.EnableChirpyRed(r.Context(), enableChirpyRedRequest.Data.UserID)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					cfg.respondWithError(w, http.StatusNotFound, fmt.Sprintf("User %v not found.", id))
+					return
+				}
+
+				output := func() {
+					log.Printf("An error occured when trying to update user's %v ChirpyRed value: %s", id, err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.UserLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured when trying to update user's %v ChirpyRed value: %s", id, err))
+				return
+			}
+			cfg.respondWithJSON(w, http.StatusNoContent, nil)
+			return
+		}
+
+		cfg.respondWithError(w, http.StatusBadRequest, "Something went wrong, please check your request.")
 	} else {
 		cfg.respondWithError(w, http.StatusMethodNotAllowed, "Invalid request method.")
 	}

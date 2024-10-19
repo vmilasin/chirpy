@@ -9,7 +9,7 @@ BEFORE UPDATE ON refresh_tokens
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
--- -goose Down
+-- +goose Down
 
 -- Drop the trigger
 DROP TRIGGER IF EXISTS set_updated_at ON refresh_tokens;

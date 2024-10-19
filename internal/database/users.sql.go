@@ -12,10 +12,23 @@ import (
 	"github.com/google/uuid"
 )
 
+const checkChirpyRed = `-- name: CheckChirpyRed :one
+SELECT is_chirpy_red
+FROM users
+WHERE id = $1
+`
+
+func (q *Queries) CheckChirpyRed(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, checkChirpyRed, id)
+	var is_chirpy_red bool
+	err := row.Scan(&is_chirpy_red)
+	return is_chirpy_red, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash)
 VALUES ($1, $2)
-RETURNING id, email, created_at, updated_at
+RETURNING id, email, created_at, updated_at, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -24,10 +37,11 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -38,8 +52,23 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.Email,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsChirpyRed,
 	)
 	return i, err
+}
+
+const enableChirpyRed = `-- name: EnableChirpyRed :one
+UPDATE users
+SET
+    is_chirpy_red = TRUE
+WHERE id = $1
+RETURNING id
+`
+
+func (q *Queries) EnableChirpyRed(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, enableChirpyRed, id)
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getPWHash = `-- name: GetPWHash :one

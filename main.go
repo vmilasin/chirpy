@@ -97,6 +97,8 @@ func main() {
 	mux.Handle("POST /api/refresh", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRefresh)))
 	mux.Handle("POST /api/revoke", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRevoke)))
 
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.HandlerWebhooksPolkaEnableChirpyRed)
+
 	// Server parameters
 	server := &http.Server{
 		Handler: mux,
