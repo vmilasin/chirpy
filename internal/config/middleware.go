@@ -85,3 +85,29 @@ func (cfg *ApiConfig) RefreshTokenMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+func (cfg *ApiConfig) PolkaMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		providedPolkaKey := r.Header.Get("Authorization")
+		if providedPolkaKey == "" {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid or missing Polka key.")
+			return
+		}
+
+		var key string
+		if strings.HasPrefix(providedPolkaKey, "ApiKey ") {
+			key = strings.TrimPrefix(providedPolkaKey, "ApiKey ")
+			key = strings.TrimSpace(key)
+		} else {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid Polka key.")
+			return
+		}
+
+		if key != cfg.PolkaKey {
+			cfg.respondWithError(w, http.StatusUnauthorized, "Invalid Polka key.")
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}

@@ -62,8 +62,10 @@ func main() {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	// Get the PLATFORM value
 	platform := os.Getenv("PLATFORM")
+	// Get the key for Polka webhooks
+	polkaKey := os.Getenv("POLKA_KEY")
 	// Initialize API config
-	cfg := config.NewApiConfig(db, queries, logFiles, jwtSecret, platform)
+	cfg := config.NewApiConfig(db, queries, logFiles, jwtSecret, platform, polkaKey)
 
 	if *dbg {
 		cfg.Queries.TruncateAllTables(context.Background())
@@ -97,7 +99,7 @@ func main() {
 	mux.Handle("POST /api/refresh", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRefresh)))
 	mux.Handle("POST /api/revoke", cfg.RefreshTokenMiddleware(http.HandlerFunc(cfg.HandlerRefreshTokenRevoke)))
 
-	mux.HandleFunc("POST /api/polka/webhooks", cfg.HandlerWebhooksPolkaEnableChirpyRed)
+	mux.Handle("POST /api/polka/webhooks", cfg.PolkaMiddleware(http.HandlerFunc(cfg.HandlerWebhooksPolkaEnableChirpyRed)))
 
 	// Server parameters
 	server := &http.Server{

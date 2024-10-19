@@ -54,6 +54,9 @@ SELECT
     created_at AS "created_at", --json:"created_at"
     updated_at AS "updated_at" --json:"updated_at"
 FROM chirps
+ORDER BY 
+    CASE WHEN $1 THEN created_at END DESC,
+    CASE WHEN NOT $1 THEN created_at END ASC
 `
 
 type GetChirpAllRow struct {
@@ -64,8 +67,8 @@ type GetChirpAllRow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (q *Queries) GetChirpAll(ctx context.Context) ([]GetChirpAllRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChirpAll)
+func (q *Queries) GetChirpAll(ctx context.Context, dollar_1 interface{}) ([]GetChirpAllRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChirpAll, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -110,4 +113,60 @@ func (q *Queries) GetChirpByID(ctx context.Context, id uuid.UUID) (Chirp, error)
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getChirpsFromAuthor = `-- name: GetChirpsFromAuthor :many
+SELECT
+    id AS "id", --json:"id"
+    body AS "body", --json:"body"
+    user_id AS "user_id", --json:"user_id"
+    created_at AS "created_at", --json:"created_at"
+    updated_at AS "updated_at" --json:"updated_at"
+FROM chirps
+WHERE user_id = $1
+ORDER BY 
+    CASE WHEN $2 THEN created_at END DESC,
+    CASE WHEN NOT $2 THEN created_at END ASC
+`
+
+type GetChirpsFromAuthorParams struct {
+	UserID  uuid.UUID   `json:"user_id"`
+	Column2 interface{} `json:"column_2"`
+}
+
+type GetChirpsFromAuthorRow struct {
+	ID        uuid.UUID `json:"id"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GetChirpsFromAuthor(ctx context.Context, arg GetChirpsFromAuthorParams) ([]GetChirpsFromAuthorRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChirpsFromAuthor, arg.UserID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChirpsFromAuthorRow
+	for rows.Next() {
+		var i GetChirpsFromAuthorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Body,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

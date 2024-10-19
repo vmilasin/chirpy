@@ -16,9 +16,10 @@ type ApiConfig struct {
 	AppLogs        *logger.AppLogs
 	JWTSecret      []byte
 	Platform       string
+	PolkaKey       string
 }
 
-func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]string, jwtSecret []byte, platform string) *ApiConfig {
+func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]string, jwtSecret []byte, platform, polkaKey string) *ApiConfig {
 	internalLogs := logger.InitiateLogs(logFiles)
 
 	cfg := &ApiConfig{
@@ -28,6 +29,7 @@ func NewApiConfig(db *sql.DB, queries *database.Queries, logFiles map[string]str
 		AppLogs:        internalLogs,
 		JWTSecret:      jwtSecret,
 		Platform:       platform,
+		PolkaKey:       polkaKey,
 	}
 
 	loggerOutput := func() {

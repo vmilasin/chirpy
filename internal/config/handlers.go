@@ -351,8 +351,40 @@ func (cfg *ApiConfig) HandlerUserUpdate(w http.ResponseWriter, r *http.Request) 
 // GET all chirps
 func (cfg *ApiConfig) HandlerChirpsGetAll(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		authorID := r.URL.Query().Get("author_id")
+
+		sortDescending := false
+
+		if sortDirection := r.URL.Query().Get("sort"); sortDirection == "desc" {
+			sortDescending = true
+		}
+
+		if authorID != "" {
+			// Fetch chirps from a specific author
+			parsedAuthorID, err := uuid.Parse(authorID)
+			if err != nil {
+				cfg.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse given authorID: %s.", err))
+				return
+			}
+			parameters := database.GetChirpsFromAuthorParams{
+				UserID:  parsedAuthorID,
+				Column2: sortDescending,
+			}
+			chirpsFromAuthor, err := cfg.Queries.GetChirpsFromAuthor(r.Context(), parameters)
+			if err != nil {
+				output := func() {
+					log.Printf("An error occured while fetching chirps: %s.", err)
+				}
+				cfg.AppLogs.LogToFile(cfg.AppLogs.ChirpLog, output)
+				cfg.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("An error occured while fetching chirps: '%s'", err))
+				return
+			}
+			cfg.respondWithJSON(w, http.StatusOK, chirpsFromAuthor)
+			return
+		}
+
 		// Fetch all chirps from the DB
-		loadedChirps, err := cfg.Queries.GetChirpAll(r.Context())
+		loadedChirps, err := cfg.Queries.GetChirpAll(r.Context(), sortDescending)
 		if err != nil {
 			output := func() {
 				log.Printf("An error occured while fetching chirps: %s.", err)
